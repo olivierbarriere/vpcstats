@@ -13,7 +13,7 @@ compute.PI <- function(obsdata,
                        REPL = REP,
                        nbins = NULL,
                        style = "ntile", # "ntile", ("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")-> ClassInt, "breaks"
-                       breaks = NULL,
+                       breaks = NULL, #either a vector or a data.frame with a column "breaks"
                        LLOQ = NULL,
                        filterblq = FALSE, # remove the BLQ just before computing the quantiles, but after "merging" with rep(, sim) 
                        predcorrection = FALSE,
@@ -23,13 +23,13 @@ compute.PI <- function(obsdata,
                        CIPI = c(0.025, 0.5, 0.975),
                        bootstrapobsdata = FALSE) {
   
-  
-  if (!is.null(breaks) & is.null(nbins)) nbins = "breaks"
+  if (!is.null(breaks) & is.null(nbins)) {
+    nbins <- "breaks"
+  }
   nbins <- enquo(nbins)
   if (quo_is_null(nbins)) {
     message("nbins is null no binning done")
   }
-  
   TIME <- enquo(TIME)
   DV <- enquo(DV)
   REPL <- enquo(REPL)
@@ -37,9 +37,12 @@ compute.PI <- function(obsdata,
   if (quo_is_null(LLOQ)) {
     message("LLOQ is null")
   }
-  
   if (filterblq) {
     message("Equal censoring of observed and simulated data")
+  }
+  
+  if(bootstrapobsdata){
+    warning("warning: bootstrapping observed data ignored not yet implemented")
   }
   
   originaldatabins <- obsdata
@@ -48,28 +51,27 @@ compute.PI <- function(obsdata,
   NREP <- nrow(simdatabins) / nrow(originaldatabins)
   message(paste("detected", NREP, "simulations"))
   
-  if(bootstrapobsdata){
-    warning("warning: bootstrapping observed data ignored not yet implemented")
+  if (NREP %%1 != 0) {
+    stop("Error: Sim dataset is not a multiple of obs dataset")
   }
   
   if (!all.equal(
-    originaldatabins$ID,
-    simdatabins$ID[1:(nrow(simdatabins) / NREP)]
-  )) {
-    stop("Error: ID's of your Obs and Sim data are not identical ")
+    originaldatabins %>% pull(ID),
+    simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID))) {
+    stop("Error: ID's of your Obs and Sim data are not identical")
   }
+  
   if (!all.equal(
-    as.vector(originaldatabins %>%
-              mutate(TIME = !!TIME) %>% select(TIME)),
-    as.vector(simdatabins %>%
-              filter(!!REPL == min(!!REPL)) %>%
-              mutate(TIME = !!TIME) %>% select(TIME))
-    ,
-    check.attributes = FALSE
-  )
-  ) {
-    stop("Error: Time columns of Obs and Sim data are not identical or not in the same order ")
+    originaldatabins %>% mutate(TIME = !!TIME) %>% pull(TIME),
+    simdatabins %>% filter(!!REPL == min(!!REPL)) %>% mutate(TIME = !!TIME) %>% pull(TIME),
+    check.attributes = FALSE)) {
+    stop("Error: Time columns of Obs and Sim data are not identical or not in the same order")
   }
+  
+  originaldatabins <- originaldatabins %>%
+    group_by_at(all.vars(stratify))
+  simdatabins <- simdatabins %>%
+    group_by_at(all.vars(stratify))
   
   if (!quo_is_null(LLOQ)) {
     originaldatabins <- originaldatabins %>%
@@ -79,260 +81,169 @@ compute.PI <- function(obsdata,
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
   }
   
-  
-  
   if (quo_is_null(nbins)) {
     originaldatabins <- originaldatabins %>%
-      mutate(BINS = !!TIME)
-    # originaldatabins <- originaldatabins %>%
-    #   group_by(BINS) %>%
-    #   mutate(XMIN = min(!!TIME), XMAX = max(!!TIME)) %>%
-    #   mutate(XMED = median(!!TIME)) %>%
-    #   mutate(XMID = median(c(XMIN, XMAX))) %>%
-    #   mutate(BINSC = paste("(", XMIN, "-", XMAX, "]", sep = "")) %>%
-    #   mutate(NOBS = length(DV))
-    # 
-    # originaldatabins = originaldatabins %>%
-    #   mutate(XLEFT = XMIN, XRIGHT = XMAX) #May be improved (more right/left than min/max) if choosing a direction and the value (min or max) of the current bin and the same value in the previous/next one
-    
+      mutate(BIN = !!TIME)
   } else {
-    originaldatabins <- originaldatabins %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
     if (!is.null(breaks)) {
       if (is.vector(breaks)) {
-        breaks = data.frame(breaks=breaks)
+        breaks <- data.frame(breaks=breaks)
         
         originaldatabins <- originaldatabins %>%
-          mutate(BINS = as.numeric(cut(!!TIME, breaks$breaks, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, breaks$breaks, include.lowest=T)))
         
       } else {
         cutbreaks <- function(data, breaks) {
           subsetbreaks = semi_join(breaks, data)
-          data %>% mutate(BINS = as.numeric(cut(!!TIME, subsetbreaks$breaks, include.lowest=T)))
+          data %>% mutate(BIN = as.numeric(cut(!!TIME, subsetbreaks$breaks, include.lowest=T)))
         }
         
         originaldatabins <- originaldatabins %>% 
           left_join(originaldatabins %>% do(cutbreaks(., breaks))) #join to preserver original order
       }
       
-      breaks = breaks %>% 
+      breaks <- breaks %>% 
         group_by_at(intersect(group_vars(originaldatabins), names(breaks %>% select(-breaks)))) %>%
-        mutate(BINS = seq_len(n()),
+        mutate(BIN = seq_len(n()),
                XLEFT = breaks,
-               XRIGHT = c(breaks[-1],NA))
+               XRIGHT = c(breaks[-1],NA)) %>%
+        select(-breaks)
       
     } else { 
-      if (is.null(style)) {
+      if (style == "ntile") {
         originaldatabins <- originaldatabins %>%
-          mutate(BINS = ntile(!!TIME, !!nbins))
+          mutate(BIN = ntile(!!TIME, !!nbins))
+      } else if (style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
+        originaldatabins <- originaldatabins %>%
+          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!nbins, style=style)$brks, include.lowest=T)))
       } else {
-        originaldatabins <- originaldatabins %>%
-          mutate(BINS = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!nbins, style=style)$brks, include.lowest=T)))
+        stop("Error: Unknown style")
       }
     }
-    
-    originaldatabins <- originaldatabins %>%
-      group_by(BINS, add = TRUE) %>%
-      mutate(XMIN = min(!!TIME), XMAX = max(!!TIME)) %>%
-      mutate(XMED = median(!!TIME)) %>%
-      mutate(XMID = median(c(XMIN, XMAX))) %>%
-      mutate(BINSC = paste("(", XMIN, "-", XMAX, "]", sep = "")) %>%
-      mutate(NOBS = length(DV))
-    
-    if (!is.null(breaks)) {
-      originaldatabins = originaldatabins %>%
-        left_join(breaks %>% select(-breaks)) 
-    } else {
-      originaldatabins = originaldatabins %>%
-        mutate(XLEFT = XMIN, XRIGHT = XMAX) #May be improved (more right/left than min/max) if choosing a direction and the value (min or max) of the current bin and the same value in the previous/next one
-    }
   }
   
-  simdatabins$XMIN <- rep(originaldatabins$XMIN, time = NREP)
-  simdatabins$XMED <- rep(originaldatabins$XMED, time = NREP)
-  simdatabins$XMID <- rep(originaldatabins$XMID, time = NREP)
-  simdatabins$XMAX <- rep(originaldatabins$XMAX, time = NREP)
-  simdatabins$XLEFT <- rep(originaldatabins$XLEFT, time = NREP)
-  simdatabins$XRIGHT <- rep(originaldatabins$XRIGHT, time = NREP)
-  simdatabins$BINS <- rep(originaldatabins$BINS, time = NREP)
-  simdatabins$BINSC <- rep(originaldatabins$BINSC, time = NREP)
-  simdatabins$NOBS <- rep(originaldatabins$NOBS, time = NREP)
+  originaldatabins <- originaldatabins %>%
+    group_by(BIN, add = TRUE) %>%
+    mutate(XMIN = min(!!TIME),
+           XMAX = max(!!TIME),
+           XMED = median(!!TIME),
+           XMID = median(c(XMIN, XMAX)),
+           NOBS = length(DV))
+  
+  if (is.null(breaks)) {
+    breaks <- originaldatabins %>%
+      group_by_at(all.vars(stratify)) %>%
+      distinct(BIN, XMIN, XMAX) %>%
+      arrange_at(c(group_vars(.),"BIN")) %>%
+      #mutate(XLEFT = (XMIN+c(-Inf,XMAX[-length(XMAX)]))/2, #Infinite left and right boundaries
+      #       XRIGHT = (XMAX+c(XMIN[-1],Inf))/2) %>%
+      mutate(XLEFT = (XMIN+c(XMIN[1],XMAX[-length(XMAX)]))/2, #Min and max left and right boundaries
+             XRIGHT = (XMAX+c(XMIN[-1],XMAX[length(XMAX)]))/2)
+  }
+  
+  if (quo_is_null(LLOQ)) {
+    bins <- originaldatabins %>%
+      distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS)
+  } else {
+    bins <- originaldatabins %>%
+      mutate(LLOQ = !!LLOQ) %>%
+      distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS, LLOQ) #Warning, can produce unexpected results if LLOQ is not unique within each strata
+  }
+  bins <- bins %>% 
+    left_join(breaks)
+  
+  simdatabins$BIN <- rep(originaldatabins$BIN, time = NREP)
   
   if (filterblq & !quo_is_null(LLOQ)) {
-    originaldatabins = originaldatabins %>% filter(LLOQFL==0)
-    simdatabins = simdatabins %>% filter(LLOQFL==0)
-  }
-  
-  if (quo_is_null(LLOQ)) {
-    percentblqobs <- originaldatabins %>%
-      dplyr::mutate(percentblq = NA)
-    originaldatabins <- left_join(originaldatabins, percentblqobs)
-  }
-  if (!quo_is_null(LLOQ)) {
-    percentblqobs <- originaldatabins %>%
-      group_by(BINSC, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS)
-    
-    
-    percentblqobs <- percentblqobs %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
-    
-    percentblqobs <- percentblqobs %>%
-      dplyr::mutate(percentblq = 100 * mean(LLOQFL))
-    originaldatabins <- left_join(originaldatabins, percentblqobs)
+    originaldatabins <- originaldatabins %>% filter(LLOQFL==0)
+    simdatabins <- simdatabins %>% filter(LLOQFL==0)
   }
   
   if (predcorrection) {
     originaldatabins <- originaldatabins %>%
-      dplyr::group_by(BINSC)
-    
-    
-    originaldatabins <- originaldatabins %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
-    
-    originaldatabins <- originaldatabins %>%
-      dplyr::mutate(mp = median(PRED))
+      dplyr::mutate(MEDPRED = median(PRED))
     
     if (!predcorrection_islogdv) {
       originaldatabins <- originaldatabins %>%
-        dplyr::mutate(dvc = !!DV * mp / PRED)
+        dplyr::mutate(DVC = !!DV * MEDPRED / PRED)
     }
     if (predcorrection_islogdv) {
       originaldatabins <- originaldatabins %>%
-        dplyr::mutate(dvc = !!DV + (mp - PRED))
+        dplyr::mutate(DVC = !!DV + (MEDPRED - PRED))
     }
-  }
-  
-  if (!predcorrection) {
+  } else {
     originaldatabins <- originaldatabins %>%
-      dplyr::mutate(dvc = !!DV)
+      dplyr::mutate(DVC = !!DV)
   }
   
   if (quo_is_null(LLOQ)) {
     PIobs <- originaldatabins %>%
-      group_by(BINS, BINSC, percentblq, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS)
-    
-    
-    PIobs <- PIobs %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
-    
-    PIobs <- PIobs %>%
       dplyr::summarize(
-        PLPI = quantile(dvc, probs = PI[1]),
-        PMPI = quantile(dvc, probs = PI[2]),
-        PUPI = quantile(dvc, probs = PI[3])
-      )
-    PIobs <- tidyr::gather(
-      PIobs, quantilename, quantilevalue,
-      PLPI, PMPI, PUPI
-    )
-  }
-  if (!quo_is_null(LLOQ)) {
+        PLPI = quantile(DVC, probs = PI[1]),
+        PMPI = quantile(DVC, probs = PI[2]),
+        PUPI = quantile(DVC, probs = PI[3])) %>%
+      tidyr::gather(QNAME, QVALUE,
+                    PLPI, PMPI, PUPI)
+  } else {
     PIobs <- originaldatabins %>%
-      mutate(LLOQ = !!LLOQ) %>%
-      group_by(BINS, BINSC, percentblq, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS, LLOQ)
-    
-    PIobs <- PIobs %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
-    
-    PIobs <- PIobs %>%
+      dplyr::mutate(PCTBLQ_VALUE = 100 * mean(LLOQFL)) %>%
+      group_by(PCTBLQ_VALUE, add = TRUE) %>%
+      #mutate(LLOQ = !!LLOQ) %>%
+      #group_by(LLOQ, add = TRUE) %>%
       dplyr::summarize(
-        PLPI = quantile_cens(dvc, p = PI[1], limit = LLOQ),
-        PMPI = quantile_cens(dvc, p = PI[2], limit = LLOQ),
-        PUPI = quantile_cens(dvc, p = PI[3], limit = LLOQ)
-      )
-    PIobs <- tidyr::gather(
-      PIobs, quantilename, quantilevalue,
-      PLPI, PMPI, PUPI
-    )
+        PLPI = quantile_cens(DVC, p = PI[1], limit = !!LLOQ),
+        PMPI = quantile_cens(DVC, p = PI[2], limit = !!LLOQ),
+        PUPI = quantile_cens(DVC, p = PI[3], limit = !!LLOQ)) %>%
+      tidyr::gather(QNAME, QVALUE,
+                    PLPI, PMPI, PUPI)
   }
   
-  PIobs <- PIobs
   
   if (predcorrection) {
-    simdatabins$mp <- rep(originaldatabins$mp, time = NREP)
+    simdatabins$MEDPRED <- rep(originaldatabins$MEDPRED, time = NREP)
     if (!predcorrection_islogdv) {
       simdatabins <- simdatabins %>%
-        dplyr::mutate(dvc = !!DV * mp / PRED)
+        dplyr::mutate(DVC = !!DV * MEDPRED / PRED)
     }
     if (predcorrection_islogdv) {
       simdatabins <- simdatabins %>%
-        dplyr::mutate(dvc = !!DV + (mp - PRED))
+        dplyr::mutate(DVC = !!DV + (MEDPRED - PRED))
     }
-  }
-  
-  if (!predcorrection) {
+  } else {
     simdatabins <- simdatabins %>%
-      dplyr::mutate(dvc = !!DV)
+      dplyr::mutate(DVC = !!DV)
   }
   
-  PICIsim <- simdatabins %>%
-    group_by(!!REPL, BINS, BINSC, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS)
-  
-  
-  PICIsim <- PICIsim %>%
-    group_by_at(c(group_vars(.), all.vars(stratify)))
-  
-  
-  PICIsim <- PICIsim %>%
+  SIMPIPI <- simdatabins %>%
+    group_by(BIN, !!REPL, add = TRUE) %>%
     dplyr::summarize(
-      PLPI = quantile(dvc, probs = PI[1]),
-      PMPI = quantile(dvc, probs = PI[2]),
-      PUPI = quantile(dvc, probs = PI[3])
-    )
-  SIMPIPI <- tidyr::gather(PICIsim, quantilename, quantilevalue, PLPI, PMPI, PUPI)
+      PLPI = quantile(DVC, probs = PI[1]),
+      PMPI = quantile(DVC, probs = PI[2]),
+      PUPI = quantile(DVC, probs = PI[3])) %>%
+    tidyr::gather(QNAME, QVALUE,
+                  PLPI, PMPI, PUPI)
   
   VPCSTAT <- SIMPIPI %>%
-    group_by(quantilename, BINS, BINSC, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS)
-  
-  
-  VPCSTAT <- VPCSTAT %>%
-    group_by_at(c(group_vars(.), all.vars(stratify)))
-  
-  
-  VPCSTAT <- VPCSTAT %>%
+    group_by(QNAME, add = TRUE) %>% #summarise will drop the last group (here !!REPL) https://github.com/tidyverse/dplyr/issues/862
     dplyr::summarize(
-      QELCI = quantile(quantilevalue, probs = CIPI[1]),
-      QEMCI = quantile(quantilevalue, probs = CIPI[2]),
-      QEUCI = quantile(quantilevalue, probs = CIPI[3])
-    )
+      QLCI = quantile(QVALUE, probs = CIPI[1]),
+      QMCI = quantile(QVALUE, probs = CIPI[2]),
+      QUCI = quantile(QVALUE, probs = CIPI[3]))
   
   
   if (!quo_is_null(LLOQ)) {
-    percentblqsim <- simdatabins %>%
-      group_by(!!REPL, BINSC, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS)
+    percentblqsimSTAT <- simdatabins %>%
+      group_by(BIN, !!REPL, add = TRUE) %>%
+      dplyr::summarize(PERCENTBLQ = 100 * mean(LLOQFL)) %>% #summarise will drop the last group (here !!REPL)
+      dplyr::summarize(PCTBLQ_LCI = quantile(PERCENTBLQ, probs = CIPI[1]),
+                       PCTBLQ_MCI = quantile(PERCENTBLQ, probs = CIPI[2]),
+                       PCTBLQ_UCI = quantile(PERCENTBLQ, probs = CIPI[3]))
     
-    
-    percentblqsim <- percentblqsim %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
-    
-    percentblqsim <- percentblqsim %>%
-      dplyr::summarize(percentblq = mean(LLOQFL))
-    percentblqsim <- tidyr::gather(percentblqsim, blqquantilename, blqquantilevalue, percentblq)
-    
-    percentblqsimSTAT <- percentblqsim %>%
-      group_by(blqquantilename, BINSC, XMIN, XMAX, XMED, XMID, XLEFT, XRIGHT, NOBS)
-    
-    
-    percentblqsimSTAT <- percentblqsimSTAT %>%
-      group_by_at(c(group_vars(.), all.vars(stratify)))
-    
-    
-    percentblqsimSTAT <- percentblqsimSTAT %>%
-      dplyr::summarize(
-        percentblqQELCI = 100 * quantile(blqquantilevalue, probs = CIPI[1]),
-        percentblqQEMCI = 100 * quantile(blqquantilevalue, probs = CIPI[2]),
-        percentblqQEUCI = 100 * quantile(blqquantilevalue, probs = CIPI[3])
-      )
-    percentblqsimSTAT <- percentblqsimSTAT
     VPCSTAT <- left_join(VPCSTAT, percentblqsimSTAT)
   }
+  
   VPCSTAT <- left_join(VPCSTAT, PIobs)
+  VPCSTAT <- left_join(VPCSTAT, bins)
   
   VPCSTAT %>% ungroup()
 }
