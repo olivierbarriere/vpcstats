@@ -5,30 +5,56 @@ require(vpc) # to compare test and augment on it
 require(classInt)
 
 
+#' Compute PI
+#'
+#' @param obsdata 
+#' @param simdata 
+#' @param stratify Stratify formula: right hand side only
+#' @param TIME Time column: a name or an expression
+#' @param DV Dependent Variable column: a name or an expression
+#' @param REPL Replication Index column: a name
+#' @param LLOQ LLOQ column: a name, an expression, or a fixed value
+#' @param NBINS NBINS column: a name, an expression, or a fixed value
+#' @param style Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)
+#' @param breaks User defined breaks: either a vector or a wide data.frame with a column "breaks", and other colums corresponding to the stratify variables
+#' @param filterblq Flag to remove the BLQ values just before computing the quantiles, but after "merging" with rep(, sim) 
+#' @param predcorrection Flag to indicate if the VPC has to be pred corrected or not
+#' @param predcorrection_islogdv Flag to indicate if the data was log transformed
+#' @param predcorrection_lowerbnd #Not used yet
+#' @param PI Prediction Intervals: vector of 3 values, Lower, Middle and Upper
+#' @param CIPI Confidence Intervals around the Prediction Intervals : vector of 3 values, Lower, Middle and Upper
+#' @param bootstrapobsdata #Not used yet
+#'
+#' @return
+#' @export
+#'
+#' @examples
+
+
 compute.PI <- function(obsdata,
                        simdata,
-                       stratify = NULL, #formula
+                       stratify = NULL,
                        TIME = TIME,
                        DV = DV,
                        REPL = REP,
-                       nbins = NULL,
-                       style = "ntile", # "ntile", ("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")-> ClassInt, "breaks"
-                       breaks = NULL, #either a vector or a data.frame with a column "breaks"
                        LLOQ = NULL,
-                       filterblq = FALSE, # remove the BLQ just before computing the quantiles, but after "merging" with rep(, sim) 
+                       NBINS = NULL,
+                       style = "ntile",
+                       breaks = NULL, 
+                       filterblq = FALSE,
                        predcorrection = FALSE,
                        predcorrection_islogdv = FALSE,
-                       predcorrection_lowerbnd = 0, #not used yet
+                       predcorrection_lowerbnd = 0,
                        PI = c(0.05, 0.5, 0.95),
                        CIPI = c(0.025, 0.5, 0.975),
                        bootstrapobsdata = FALSE) {
   
-  if (!is.null(breaks) & is.null(nbins)) {
-    nbins <- "breaks"
+  if (!is.null(breaks) & is.null(NBINS)) {
+    NBINS <- "breaks"
   }
-  nbins <- enquo(nbins)
-  if (quo_is_null(nbins)) {
-    message("nbins is null no binning done")
+  NBINS <- enquo(NBINS)
+  if (quo_is_null(NBINS)) {
+    message("NBINS is null no binning done")
   }
   TIME <- enquo(TIME)
   DV <- enquo(DV)
@@ -81,7 +107,7 @@ compute.PI <- function(obsdata,
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
   }
   
-  if (quo_is_null(nbins)) {
+  if (quo_is_null(NBINS)) {
     originaldatabins <- originaldatabins %>%
       mutate(BIN = !!TIME)
   } else {
@@ -112,10 +138,10 @@ compute.PI <- function(obsdata,
     } else { 
       if (style == "ntile") {
         originaldatabins <- originaldatabins %>%
-          mutate(BIN = ntile(!!TIME, !!nbins))
+          mutate(BIN = ntile(!!TIME, !!NBINS))
       } else if (style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
         originaldatabins <- originaldatabins %>%
-          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!nbins, style=style)$brks, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=style)$brks, include.lowest=T)))
       } else {
         stop("Error: Unknown style")
       }
@@ -182,19 +208,17 @@ compute.PI <- function(obsdata,
         PLPI = quantile(DVC, probs = PI[1]),
         PMPI = quantile(DVC, probs = PI[2]),
         PUPI = quantile(DVC, probs = PI[3])) %>%
-      tidyr::gather(QNAME, QVALUE,
+      tidyr::gather(QNAME, QOBS,
                     PLPI, PMPI, PUPI)
   } else {
     PIobs <- originaldatabins %>%
-      dplyr::mutate(PCTBLQ_VALUE = 100 * mean(LLOQFL)) %>%
-      group_by(PCTBLQ_VALUE, add = TRUE) %>%
-      #mutate(LLOQ = !!LLOQ) %>%
-      #group_by(LLOQ, add = TRUE) %>%
+      dplyr::mutate(PCTBLQOBS = 100 * mean(LLOQFL)) %>%
+      group_by(PCTBLQOBS, add = TRUE) %>%
       dplyr::summarize(
         PLPI = quantile_cens(DVC, p = PI[1], limit = !!LLOQ),
         PMPI = quantile_cens(DVC, p = PI[2], limit = !!LLOQ),
         PUPI = quantile_cens(DVC, p = PI[3], limit = !!LLOQ)) %>%
-      tidyr::gather(QNAME, QVALUE,
+      tidyr::gather(QNAME, QOBS,
                     PLPI, PMPI, PUPI)
   }
   
@@ -220,24 +244,24 @@ compute.PI <- function(obsdata,
       PLPI = quantile(DVC, probs = PI[1]),
       PMPI = quantile(DVC, probs = PI[2]),
       PUPI = quantile(DVC, probs = PI[3])) %>%
-    tidyr::gather(QNAME, QVALUE,
+    tidyr::gather(QNAME, QOBS,
                   PLPI, PMPI, PUPI)
   
   VPCSTAT <- SIMPIPI %>%
     group_by(QNAME, add = TRUE) %>% #summarise will drop the last group (here !!REPL) https://github.com/tidyverse/dplyr/issues/862
     dplyr::summarize(
-      QLCI = quantile(QVALUE, probs = CIPI[1]),
-      QMCI = quantile(QVALUE, probs = CIPI[2]),
-      QUCI = quantile(QVALUE, probs = CIPI[3]))
+      QLCI = quantile(QOBS, probs = CIPI[1]),
+      QMCI = quantile(QOBS, probs = CIPI[2]),
+      QUCI = quantile(QOBS, probs = CIPI[3]))
   
   
   if (!quo_is_null(LLOQ)) {
     percentblqsimSTAT <- simdatabins %>%
       group_by(BIN, !!REPL, add = TRUE) %>%
       dplyr::summarize(PERCENTBLQ = 100 * mean(LLOQFL)) %>% #summarise will drop the last group (here !!REPL)
-      dplyr::summarize(PCTBLQ_LCI = quantile(PERCENTBLQ, probs = CIPI[1]),
-                       PCTBLQ_MCI = quantile(PERCENTBLQ, probs = CIPI[2]),
-                       PCTBLQ_UCI = quantile(PERCENTBLQ, probs = CIPI[3]))
+      dplyr::summarize(PCTBLQLCI = quantile(PERCENTBLQ, probs = CIPI[1]),
+                       PCTBLQMCI = quantile(PERCENTBLQ, probs = CIPI[2]),
+                       PCTBLQUCI = quantile(PERCENTBLQ, probs = CIPI[3]))
     
     VPCSTAT <- left_join(VPCSTAT, percentblqsimSTAT)
   }
