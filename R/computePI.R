@@ -283,6 +283,6 @@ compute.PI <- function(obsdata = NULL,
   
   VPCSTAT <- merge(VPCSTAT, bins, all.x=TRUE, by=c(stratifyvars,"BIN"))
   
-  as.data.frame(VPCSTAT)
+  as.data.frame(VPCSTAT %>% mutate(DVPIN=as.numeric(gsub("%","",DVPI))) %>% arrange_at(c(stratifyvars,"BIN", "DVPIN")) %>% select(-DVPIN))
 }
 
