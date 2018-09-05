@@ -231,14 +231,17 @@ compute.PI <- function(obsdata,
                     PLPI, PMPI, PUPI)
   } else {
     PIobs <- originaldatabins %>%
-      dplyr::mutate(PCTBLQOBS = 100 * mean(LLOQFL)) %>%
-      group_by(PCTBLQOBS, add = TRUE) %>%
       dplyr::summarize(
         PLPI = quantile_cens(DVC, p = PI[1], limit = !!LLOQ),
         PMPI = quantile_cens(DVC, p = PI[2], limit = !!LLOQ),
         PUPI = quantile_cens(DVC, p = PI[3], limit = !!LLOQ)) %>%
       tidyr::gather(QNAME, QOBS,
                     PLPI, PMPI, PUPI)
+
+    PIobs <- PIobs %>%
+      left_join(originaldatabins %>%
+                  dplyr::summarize(PCTBLQOBS = 100 * mean(LLOQFL)),
+                by=c(stratifyvars,"BIN"))
   }
   
   
@@ -273,6 +276,7 @@ compute.PI <- function(obsdata,
       QMCI = quantile(QOBS, probs = CIPI[2]),
       QUCI = quantile(QOBS, probs = CIPI[3]))
   
+  VPCSTAT <- left_join(VPCSTAT, PIobs, by=c(stratifyvars,"BIN","QNAME"))
   
   if (!quo_is_null(LLOQ)) {
     VPCSTAT <- left_join(VPCSTAT,
@@ -285,7 +289,6 @@ compute.PI <- function(obsdata,
                          by=c(stratifyvars,"BIN"))
   }
   
-  VPCSTAT <- left_join(VPCSTAT, PIobs, by=c(stratifyvars,"BIN","QNAME"))
   VPCSTAT <- left_join(VPCSTAT, bins, by=c(stratifyvars,"BIN"))
   
   VPCSTAT %>% ungroup()
