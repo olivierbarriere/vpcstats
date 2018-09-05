@@ -94,10 +94,12 @@ compute.PI <- function(obsdata,
     stop("Error: Time columns of Obs and Sim data are not identical or not in the same order")
   }
   
+  stratifyvars <- all.vars(stratify)
+  
   originaldatabins <- originaldatabins %>%
-    group_by_at(all.vars(stratify))
+    group_by_at(stratifyvars)
   simdatabins <- simdatabins %>%
-    group_by_at(all.vars(stratify))
+    group_by_at(stratifyvars)
   
   if (!quo_is_null(LLOQ)) {
     originaldatabins <- originaldatabins %>%
@@ -120,7 +122,7 @@ compute.PI <- function(obsdata,
         
       } else {
         cutbreaks <- function(data, breaks) {
-          subsetbreaks = semi_join(breaks, data)
+          subsetbreaks = semi_join(breaks, data, by=intersect(names(breaks), names(data)))
           data %>% mutate(BIN = as.numeric(cut(!!TIME, subsetbreaks$breaks, include.lowest=T)))
         }
         
@@ -158,13 +160,14 @@ compute.PI <- function(obsdata,
   
   if (is.null(breaks)) {
     breaks <- originaldatabins %>%
-      group_by_at(all.vars(stratify)) %>%
+      group_by_at(stratifyvars) %>%
       distinct(BIN, XMIN, XMAX) %>%
       arrange_at(c(group_vars(.),"BIN")) %>%
       #mutate(XLEFT = (XMIN+c(-Inf,XMAX[-length(XMAX)]))/2, #Infinite left and right boundaries
       #       XRIGHT = (XMAX+c(XMIN[-1],Inf))/2) %>%
       mutate(XLEFT = (XMIN+c(XMIN[1],XMAX[-length(XMAX)]))/2, #Min and max left and right boundaries
-             XRIGHT = (XMAX+c(XMIN[-1],XMAX[length(XMAX)]))/2)
+             XRIGHT = (XMAX+c(XMIN[-1],XMAX[length(XMAX)]))/2) %>%
+      select(-XMIN, -XMAX)
   }
   
   if (quo_is_null(LLOQ)) {
@@ -175,8 +178,24 @@ compute.PI <- function(obsdata,
       mutate(LLOQ = !!LLOQ) %>%
       distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS, LLOQ) #Warning, can produce unexpected results if LLOQ is not unique within each strata
   }
-  bins <- bins %>% 
-    left_join(breaks)
+  
+  bins <- bins %>%
+    left_join(breaks, by=c(stratifyvars,"BIN"))
+  
+  bins %>%
+    group_by_at(stratifyvars) %>%
+    do({
+      if (length(stratifyvars)>0) {
+        uv <- t(unique(.[,stratifyvars]))
+        msg1 <- paste0(paste(apply(uv, 2, function(x) paste(rownames(uv), x, sep="=")), collapse=", "), ": ")
+      } else {
+        msg1 <- ""
+      }
+      msg2 <- paste(c(.$XLEFT[1], .$XRIGHT), collapse=" < ")
+      message(paste0(msg1, msg2))
+      
+      data.frame()
+    })
   
   simdatabins$BIN <- rep(originaldatabins$BIN, time = NREP)
   
@@ -238,7 +257,7 @@ compute.PI <- function(obsdata,
       dplyr::mutate(DVC = !!DV)
   }
   
-  SIMPIPI <- simdatabins %>%
+  PIsim <- simdatabins %>%
     group_by(BIN, !!REPL, add = TRUE) %>%
     dplyr::summarize(
       PLPI = quantile(DVC, probs = PI[1]),
@@ -247,7 +266,7 @@ compute.PI <- function(obsdata,
     tidyr::gather(QNAME, QOBS,
                   PLPI, PMPI, PUPI)
   
-  VPCSTAT <- SIMPIPI %>%
+  VPCSTAT <- PIsim %>%
     group_by(QNAME, add = TRUE) %>% #summarise will drop the last group (here !!REPL) https://github.com/tidyverse/dplyr/issues/862
     dplyr::summarize(
       QLCI = quantile(QOBS, probs = CIPI[1]),
@@ -256,18 +275,18 @@ compute.PI <- function(obsdata,
   
   
   if (!quo_is_null(LLOQ)) {
-    percentblqsimSTAT <- simdatabins %>%
-      group_by(BIN, !!REPL, add = TRUE) %>%
-      dplyr::summarize(PERCENTBLQ = 100 * mean(LLOQFL)) %>% #summarise will drop the last group (here !!REPL)
-      dplyr::summarize(PCTBLQLCI = quantile(PERCENTBLQ, probs = CIPI[1]),
-                       PCTBLQMCI = quantile(PERCENTBLQ, probs = CIPI[2]),
-                       PCTBLQUCI = quantile(PERCENTBLQ, probs = CIPI[3]))
-    
-    VPCSTAT <- left_join(VPCSTAT, percentblqsimSTAT)
+    VPCSTAT <- left_join(VPCSTAT,
+                         simdatabins %>%
+                           group_by(BIN, !!REPL, add = TRUE) %>%
+                           dplyr::summarize(PERCENTBLQ = 100 * mean(LLOQFL)) %>% #summarise will drop the last group (here !!REPL)
+                           dplyr::summarize(PCTBLQLCI = quantile(PERCENTBLQ, probs = CIPI[1]),
+                                            PCTBLQMCI = quantile(PERCENTBLQ, probs = CIPI[2]),
+                                            PCTBLQUCI = quantile(PERCENTBLQ, probs = CIPI[3])),
+                         by=c(stratifyvars,"BIN"))
   }
   
-  VPCSTAT <- left_join(VPCSTAT, PIobs)
-  VPCSTAT <- left_join(VPCSTAT, bins)
+  VPCSTAT <- left_join(VPCSTAT, PIobs, by=c(stratifyvars,"BIN","QNAME"))
+  VPCSTAT <- left_join(VPCSTAT, bins, by=c(stratifyvars,"BIN"))
   
   VPCSTAT %>% ungroup()
 }
