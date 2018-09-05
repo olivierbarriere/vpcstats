@@ -1,9 +1,7 @@
-require(ggplot2)
 require(dplyr)
 require(rlang)
-require(vpc) # to compare test and augment on it
 require(classInt)
-
+require(data.table)
 
 #' Compute PI
 #'
@@ -20,10 +18,11 @@ require(classInt)
 #' @param filterblq Flag to remove the BLQ values just before computing the quantiles, but after "merging" with rep(, sim) 
 #' @param predcorrection Flag to indicate if the VPC has to be pred corrected or not
 #' @param predcorrection_islogdv Flag to indicate if the data was log transformed
-#' @param predcorrection_lowerbnd #Not used yet
+#' @param predcorrection_lowerbnd Not used yet
 #' @param PI Prediction Intervals: vector of 3 values, Lower, Middle and Upper
 #' @param CIPI Confidence Intervals around the Prediction Intervals : vector of 3 values, Lower, Middle and Upper
-#' @param bootstrapobsdata #Not used yet
+#' @param bootstrapobsdata Not used yet
+#' @param data.table.computations Faster computations for sim stats done using data.table
 #'
 #' @return
 #' @export
@@ -47,38 +46,39 @@ compute.PI <- function(obsdata,
                        predcorrection_lowerbnd = 0,
                        PI = c(0.05, 0.5, 0.95),
                        CIPI = c(0.025, 0.5, 0.975),
-                       bootstrapobsdata = FALSE) {
+                       bootstrapobsdata = FALSE,
+                       data.table.computations = FALSE) {
   
   if (!is.null(breaks) & is.null(NBINS)) {
     NBINS <- "breaks"
   }
   NBINS <- enquo(NBINS)
   if (quo_is_null(NBINS)) {
-    message("NBINS is null no binning done")
+    message("No binning done")
   }
   TIME <- enquo(TIME)
   DV <- enquo(DV)
   REPL <- enquo(REPL)
   LLOQ <- enquo(LLOQ)
   if (quo_is_null(LLOQ)) {
-    message("LLOQ is null")
+    message("LLOQ is not defined")
   }
   if (filterblq) {
     message("Equal censoring of observed and simulated data")
   }
   
   if(bootstrapobsdata){
-    warning("warning: bootstrapping observed data ignored not yet implemented")
+    warning("Warning: bootstrapping observed data ignored not yet implemented")
   }
   
   originaldatabins <- obsdata
   simdatabins <- simdata
   
   NREP <- nrow(simdatabins) / nrow(originaldatabins)
-  message(paste("detected", NREP, "simulations"))
+  message(paste("Detected", NREP, "simulations"))
   
   if (NREP %%1 != 0) {
-    stop("Error: Sim dataset is not a multiple of obs dataset")
+    stop("Error: Sim dataset length is not a multiple of obs dataset length")
   }
   
   if (!all.equal(
@@ -138,10 +138,10 @@ compute.PI <- function(obsdata,
         select(-breaks)
       
     } else { 
-      if (style == "ntile") {
+      if (!is.null(style) && style == "ntile") {
         originaldatabins <- originaldatabins %>%
           mutate(BIN = ntile(!!TIME, !!NBINS))
-      } else if (style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
+      } else if (!is.null(style) && style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
         originaldatabins <- originaldatabins %>%
           mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=style)$brks, include.lowest=T)))
       } else {
@@ -191,7 +191,7 @@ compute.PI <- function(obsdata,
       } else {
         msg1 <- ""
       }
-      msg2 <- paste(c(.$XLEFT[1], .$XRIGHT), collapse=" < ")
+      msg2 <- paste(signif(sort(c(min(.$XLEFT), .$XRIGHT)),3), collapse=" < ")
       message(paste0(msg1, msg2))
       
       data.frame()
@@ -237,13 +237,11 @@ compute.PI <- function(obsdata,
         PUPI = quantile_cens(DVC, p = PI[3], limit = !!LLOQ)) %>%
       tidyr::gather(QNAME, QOBS,
                     PLPI, PMPI, PUPI)
-
     PIobs <- PIobs %>%
       left_join(originaldatabins %>%
                   dplyr::summarize(PCTBLQOBS = 100 * mean(LLOQFL)),
                 by=c(stratifyvars,"BIN"))
   }
-  
   
   if (predcorrection) {
     simdatabins$MEDPRED <- rep(originaldatabins$MEDPRED, time = NREP)
@@ -260,22 +258,33 @@ compute.PI <- function(obsdata,
       dplyr::mutate(DVC = !!DV)
   }
   
-  PIsim <- simdatabins %>%
-    group_by(BIN, !!REPL, add = TRUE) %>%
-    dplyr::summarize(
-      PLPI = quantile(DVC, probs = PI[1]),
-      PMPI = quantile(DVC, probs = PI[2]),
-      PUPI = quantile(DVC, probs = PI[3])) %>%
-    tidyr::gather(QNAME, QOBS,
-                  PLPI, PMPI, PUPI)
-  
-  VPCSTAT <- PIsim %>%
-    group_by(QNAME, add = TRUE) %>% #summarise will drop the last group (here !!REPL) https://github.com/tidyverse/dplyr/issues/862
-    dplyr::summarize(
-      QLCI = quantile(QOBS, probs = CIPI[1]),
-      QMCI = quantile(QOBS, probs = CIPI[2]),
-      QUCI = quantile(QOBS, probs = CIPI[3]))
-  
+  if (data.table.computations) {
+    PIsim <- as.data.table(simdatabins)[, 
+                                        .(QNAME=c("PLPI","PMPI","PUPI"),
+                                          QOBS=quantile(DVC, probs = PI)),
+                                        by = c(stratifyvars,"BIN",quo_name(REPL))]
+    VPCSTAT <- PIsim[, 
+                     .(Stat=c("QLCI","QMCI","QUCI"),
+                       Quantile=quantile(QOBS, probs = CIPI)),
+                     by = c(stratifyvars,"BIN","QNAME")]
+    VPCSTAT <- dcast(VPCSTAT, as.formula(paste0(paste(c(stratifyvars, "BIN", "QNAME"), collapse="+"), "~Stat")), value.var = "Quantile")
+  } else {
+    PIsim <- simdatabins %>%
+      group_by(BIN, !!REPL, add = TRUE) %>%
+      dplyr::summarize(
+        PLPI = quantile(DVC, probs = PI[1]),
+        PMPI = quantile(DVC, probs = PI[2]),
+        PUPI = quantile(DVC, probs = PI[3])) %>%
+      tidyr::gather(QNAME, QOBS,
+                    PLPI, PMPI, PUPI)
+    
+    VPCSTAT <- PIsim %>%
+      group_by(QNAME, add = TRUE) %>% #summarise will drop the last group (here !!REPL) https://github.com/tidyverse/dplyr/issues/862
+      dplyr::summarize(
+        QLCI = quantile(QOBS, probs = CIPI[1]),
+        QMCI = quantile(QOBS, probs = CIPI[2]),
+        QUCI = quantile(QOBS, probs = CIPI[3]))
+  }
   VPCSTAT <- left_join(VPCSTAT, PIobs, by=c(stratifyvars,"BIN","QNAME"))
   
   if (!quo_is_null(LLOQ)) {
