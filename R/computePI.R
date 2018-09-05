@@ -47,9 +47,6 @@ compute.PI <- function(obsdata = NULL,
                        CI = c(0.025, 0.5, 0.975),
                        bootstrapobsdata = FALSE) {
   
-  if (!is.null(breaks) & is.null(NBINS)) {
-    NBINS <- "breaks"
-  }
   NBINS <- enquo(NBINS)
   if (quo_is_null(NBINS)) {
     message("No binning done")
@@ -113,7 +110,7 @@ compute.PI <- function(obsdata = NULL,
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
   }
   
-  if (quo_is_null(NBINS)) {
+  if (quo_is_null(NBINS) & is.null(breaks)) {
     obsdatabins <- obsdatabins %>%
       mutate(BIN = !!TIME)
   } else {
@@ -184,7 +181,7 @@ compute.PI <- function(obsdata = NULL,
   }
   
   bins <- bins %>%
-    left_join(breaks, by=c(stratifyvars,"BIN"))
+    left_join(breaks, by=intersect(names(bins), names(breaks)))
   
   bins %>%
     group_by_at(stratifyvars) %>%
