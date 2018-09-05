@@ -1,12 +1,12 @@
 require(dplyr)
+require(data.table)
 require(rlang)
 require(classInt)
-require(data.table)
 
 #' Compute PI
 #'
-#' @param obsdata 
-#' @param simdata 
+#' @param obsdata Obs dataset
+#' @param simdata Sim dataset
 #' @param stratify Stratify formula: right hand side only
 #' @param TIME Time column: a name or an expression
 #' @param DV Dependent Variable column: a name or an expression
@@ -19,10 +19,9 @@ require(data.table)
 #' @param predcorrection Flag to indicate if the VPC has to be pred corrected or not
 #' @param predcorrection_islogdv Flag to indicate if the data was log transformed
 #' @param predcorrection_lowerbnd Not used yet
-#' @param PI Prediction Intervals: vector of 3 values, Lower, Middle and Upper
-#' @param CIPI Confidence Intervals around the Prediction Intervals : vector of 3 values, Lower, Middle and Upper
+#' @param PI Prediction Intervals: vector of any number of  values
+#' @param CI Confidence Intervals around the Prediction Intervals : vector of any number of value
 #' @param bootstrapobsdata Not used yet
-#' @param data.table.computations Faster computations for sim stats done using data.table
 #'
 #' @return
 #' @export
@@ -30,7 +29,7 @@ require(data.table)
 #' @examples
 
 
-compute.PI <- function(obsdata,
+compute.PI <- function(obsdata = NULL,
                        simdata,
                        stratify = NULL,
                        TIME = TIME,
@@ -45,9 +44,8 @@ compute.PI <- function(obsdata,
                        predcorrection_islogdv = FALSE,
                        predcorrection_lowerbnd = 0,
                        PI = c(0.05, 0.5, 0.95),
-                       CIPI = c(0.025, 0.5, 0.975),
-                       bootstrapobsdata = FALSE,
-                       data.table.computations = FALSE) {
+                       CI = c(0.025, 0.5, 0.975),
+                       bootstrapobsdata = FALSE) {
   
   if (!is.null(breaks) & is.null(NBINS)) {
     NBINS <- "breaks"
@@ -71,10 +69,16 @@ compute.PI <- function(obsdata,
     warning("Warning: bootstrapping observed data ignored not yet implemented")
   }
   
-  originaldatabins <- obsdata
   simdatabins <- simdata
+  if (!is.null(obsdata)) {
+    obsdatabins <- obsdata
+  } else {
+    obsdatabins <-  simdatabins %>%
+      filter(!!REPL==min(!!REPL)) %>%
+      mutate(!!quo_name(DV) := NA)
+  }
   
-  NREP <- nrow(simdatabins) / nrow(originaldatabins)
+  NREP <- nrow(simdatabins) / nrow(obsdatabins)
   message(paste("Detected", NREP, "simulations"))
   
   if (NREP %%1 != 0) {
@@ -82,13 +86,13 @@ compute.PI <- function(obsdata,
   }
   
   if (!all.equal(
-    originaldatabins %>% pull(ID),
+    obsdatabins %>% pull(ID),
     simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID))) {
     stop("Error: ID's of your Obs and Sim data are not identical")
   }
   
   if (!all.equal(
-    originaldatabins %>% mutate(TIME = !!TIME) %>% pull(TIME),
+    obsdatabins %>% mutate(TIME = !!TIME) %>% pull(TIME),
     simdatabins %>% filter(!!REPL == min(!!REPL)) %>% mutate(TIME = !!TIME) %>% pull(TIME),
     check.attributes = FALSE)) {
     stop("Error: Time columns of Obs and Sim data are not identical or not in the same order")
@@ -96,13 +100,13 @@ compute.PI <- function(obsdata,
   
   stratifyvars <- all.vars(stratify)
   
-  originaldatabins <- originaldatabins %>%
+  obsdatabins <- obsdatabins %>%
     group_by_at(stratifyvars)
   simdatabins <- simdatabins %>%
     group_by_at(stratifyvars)
   
   if (!quo_is_null(LLOQ)) {
-    originaldatabins <- originaldatabins %>%
+    obsdatabins <- obsdatabins %>%
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
     
     simdatabins <- simdatabins %>%
@@ -110,14 +114,14 @@ compute.PI <- function(obsdata,
   }
   
   if (quo_is_null(NBINS)) {
-    originaldatabins <- originaldatabins %>%
+    obsdatabins <- obsdatabins %>%
       mutate(BIN = !!TIME)
   } else {
     if (!is.null(breaks)) {
       if (is.vector(breaks)) {
         breaks <- data.frame(breaks=breaks)
         
-        originaldatabins <- originaldatabins %>%
+        obsdatabins <- obsdatabins %>%
           mutate(BIN = as.numeric(cut(!!TIME, breaks$breaks, include.lowest=T)))
         
       } else {
@@ -126,12 +130,12 @@ compute.PI <- function(obsdata,
           data %>% mutate(BIN = as.numeric(cut(!!TIME, subsetbreaks$breaks, include.lowest=T)))
         }
         
-        originaldatabins <- originaldatabins %>% 
-          left_join(originaldatabins %>% do(cutbreaks(., breaks))) #join to preserver original order
+        obsdatabins <- obsdatabins %>% 
+          left_join(obsdatabins %>% do(cutbreaks(., breaks))) #join to preserver original order
       }
       
       breaks <- breaks %>% 
-        group_by_at(intersect(group_vars(originaldatabins), names(breaks %>% select(-breaks)))) %>%
+        group_by_at(intersect(group_vars(obsdatabins), names(breaks %>% select(-breaks)))) %>%
         mutate(BIN = seq_len(n()),
                XLEFT = breaks,
                XRIGHT = c(breaks[-1],NA)) %>%
@@ -139,10 +143,10 @@ compute.PI <- function(obsdata,
       
     } else { 
       if (!is.null(style) && style == "ntile") {
-        originaldatabins <- originaldatabins %>%
+        obsdatabins <- obsdatabins %>%
           mutate(BIN = ntile(!!TIME, !!NBINS))
       } else if (!is.null(style) && style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
-        originaldatabins <- originaldatabins %>%
+        obsdatabins <- obsdatabins %>%
           mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=style)$brks, include.lowest=T)))
       } else {
         stop("Error: Unknown style")
@@ -150,7 +154,7 @@ compute.PI <- function(obsdata,
     }
   }
   
-  originaldatabins <- originaldatabins %>%
+  obsdatabins <- obsdatabins %>%
     group_by(BIN, add = TRUE) %>%
     mutate(XMIN = min(!!TIME),
            XMAX = max(!!TIME),
@@ -159,7 +163,7 @@ compute.PI <- function(obsdata,
            NOBS = length(DV))
   
   if (is.null(breaks)) {
-    breaks <- originaldatabins %>%
+    breaks <- obsdatabins %>%
       group_by_at(stratifyvars) %>%
       distinct(BIN, XMIN, XMAX) %>%
       arrange_at(c(group_vars(.),"BIN")) %>%
@@ -171,10 +175,10 @@ compute.PI <- function(obsdata,
   }
   
   if (quo_is_null(LLOQ)) {
-    bins <- originaldatabins %>%
+    bins <- obsdatabins %>%
       distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS)
   } else {
-    bins <- originaldatabins %>%
+    bins <- obsdatabins %>%
       mutate(LLOQ = !!LLOQ) %>%
       distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS, LLOQ) #Warning, can produce unexpected results if LLOQ is not unique within each strata
   }
@@ -197,54 +201,50 @@ compute.PI <- function(obsdata,
       data.frame()
     })
   
-  simdatabins$BIN <- rep(originaldatabins$BIN, time = NREP)
+  simdatabins$BIN <- rep(obsdatabins$BIN, time = NREP)
   
   if (filterblq & !quo_is_null(LLOQ)) {
-    originaldatabins <- originaldatabins %>% filter(LLOQFL==0)
+    obsdatabins <- obsdatabins %>% filter(LLOQFL==0)
     simdatabins <- simdatabins %>% filter(LLOQFL==0)
   }
   
   if (predcorrection) {
-    originaldatabins <- originaldatabins %>%
+    obsdatabins <- obsdatabins %>%
       dplyr::mutate(MEDPRED = median(PRED))
     
     if (!predcorrection_islogdv) {
-      originaldatabins <- originaldatabins %>%
+      obsdatabins <- obsdatabins %>%
         dplyr::mutate(DVC = !!DV * MEDPRED / PRED)
     }
     if (predcorrection_islogdv) {
-      originaldatabins <- originaldatabins %>%
+      obsdatabins <- obsdatabins %>%
         dplyr::mutate(DVC = !!DV + (MEDPRED - PRED))
     }
   } else {
-    originaldatabins <- originaldatabins %>%
+    obsdatabins <- obsdatabins %>%
       dplyr::mutate(DVC = !!DV)
   }
   
   if (quo_is_null(LLOQ)) {
-    PIobs <- originaldatabins %>%
-      dplyr::summarize(
-        PLPI = quantile(DVC, probs = PI[1]),
-        PMPI = quantile(DVC, probs = PI[2]),
-        PUPI = quantile(DVC, probs = PI[3])) %>%
-      tidyr::gather(QNAME, QOBS,
-                    PLPI, PMPI, PUPI)
+    PIobs <- as.data.table(obsdatabins)[, 
+                                        .(DVPI=paste0("",100*PI,"%"),
+                                          DVOBS=quantile(DVC, probs = PI)),
+                                        by = c(stratifyvars,"BIN")]    
+    
   } else {
-    PIobs <- originaldatabins %>%
-      dplyr::summarize(
-        PLPI = quantile_cens(DVC, p = PI[1], limit = !!LLOQ),
-        PMPI = quantile_cens(DVC, p = PI[2], limit = !!LLOQ),
-        PUPI = quantile_cens(DVC, p = PI[3], limit = !!LLOQ)) %>%
-      tidyr::gather(QNAME, QOBS,
-                    PLPI, PMPI, PUPI)
-    PIobs <- PIobs %>%
-      left_join(originaldatabins %>%
-                  dplyr::summarize(PCTBLQOBS = 100 * mean(LLOQFL)),
-                by=c(stratifyvars,"BIN"))
+    PIobs <- as.data.table(obsdatabins %>% #Don't know how to use !! inside data.table
+                             mutate(LLOQ = !!LLOQ))[,  
+                                                    .(DVPI=paste0("",100*PI,"%"),
+                                                      DVOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ))),
+                                                    by = c(stratifyvars,"BIN")]
+    PCTBLQobs <- as.data.table(obsdatabins)[, 
+                                            .(PCTBLQOBS = 100 * mean(LLOQFL)),
+                                            by = c(stratifyvars,"BIN")]   
+    PIobs <- merge(PIobs, PCTBLQobs, all.x=TRUE, by=c(stratifyvars,"BIN"))
   }
   
   if (predcorrection) {
-    simdatabins$MEDPRED <- rep(originaldatabins$MEDPRED, time = NREP)
+    simdatabins$MEDPRED <- rep(obsdatabins$MEDPRED, time = NREP)
     if (!predcorrection_islogdv) {
       simdatabins <- simdatabins %>%
         dplyr::mutate(DVC = !!DV * MEDPRED / PRED)
@@ -257,48 +257,32 @@ compute.PI <- function(obsdata,
     simdatabins <- simdatabins %>%
       dplyr::mutate(DVC = !!DV)
   }
+  PIsim <- as.data.table(simdatabins)[, 
+                                      .(DVPI=paste0("",100*PI,"%"),
+                                        DVSIM=quantile(DVC, probs = PI)),
+                                      by = c(stratifyvars,"BIN",quo_name(REPL))]
+  VPCSTAT <- PIsim[, 
+                   .(CI=paste0("DV",100*CI,"%CI"),
+                     Q=quantile(DVSIM, probs = CI)),
+                   by = c(stratifyvars,"BIN","DVPI")]
+  VPCSTAT <- dcast(VPCSTAT, as.formula(paste0(paste(c(stratifyvars, "BIN", "DVPI"), collapse="+"), "~CI")), value.var = "Q")
   
-  if (data.table.computations) {
-    PIsim <- as.data.table(simdatabins)[, 
-                                        .(QNAME=c("PLPI","PMPI","PUPI"),
-                                          QOBS=quantile(DVC, probs = PI)),
-                                        by = c(stratifyvars,"BIN",quo_name(REPL))]
-    VPCSTAT <- PIsim[, 
-                     .(Stat=c("QLCI","QMCI","QUCI"),
-                       Quantile=quantile(QOBS, probs = CIPI)),
-                     by = c(stratifyvars,"BIN","QNAME")]
-    VPCSTAT <- dcast(VPCSTAT, as.formula(paste0(paste(c(stratifyvars, "BIN", "QNAME"), collapse="+"), "~Stat")), value.var = "Quantile")
-  } else {
-    PIsim <- simdatabins %>%
-      group_by(BIN, !!REPL, add = TRUE) %>%
-      dplyr::summarize(
-        PLPI = quantile(DVC, probs = PI[1]),
-        PMPI = quantile(DVC, probs = PI[2]),
-        PUPI = quantile(DVC, probs = PI[3])) %>%
-      tidyr::gather(QNAME, QOBS,
-                    PLPI, PMPI, PUPI)
-    
-    VPCSTAT <- PIsim %>%
-      group_by(QNAME, add = TRUE) %>% #summarise will drop the last group (here !!REPL) https://github.com/tidyverse/dplyr/issues/862
-      dplyr::summarize(
-        QLCI = quantile(QOBS, probs = CIPI[1]),
-        QMCI = quantile(QOBS, probs = CIPI[2]),
-        QUCI = quantile(QOBS, probs = CIPI[3]))
-  }
-  VPCSTAT <- left_join(VPCSTAT, PIobs, by=c(stratifyvars,"BIN","QNAME"))
+  VPCSTAT <- merge(VPCSTAT, PIobs, all.x=TRUE, by=c(stratifyvars,"BIN","DVPI"))
   
   if (!quo_is_null(LLOQ)) {
-    VPCSTAT <- left_join(VPCSTAT,
-                         simdatabins %>%
-                           group_by(BIN, !!REPL, add = TRUE) %>%
-                           dplyr::summarize(PERCENTBLQ = 100 * mean(LLOQFL)) %>% #summarise will drop the last group (here !!REPL)
-                           dplyr::summarize(PCTBLQLCI = quantile(PERCENTBLQ, probs = CIPI[1]),
-                                            PCTBLQMCI = quantile(PERCENTBLQ, probs = CIPI[2]),
-                                            PCTBLQUCI = quantile(PERCENTBLQ, probs = CIPI[3])),
-                         by=c(stratifyvars,"BIN"))
+    VPCSTAT <- merge(VPCSTAT,
+                     dcast(as.data.table(simdatabins)[, 
+                                                      .(PCTBLQSIM = 100 * mean(LLOQFL)),
+                                                      by = c(stratifyvars,"BIN",quo_name(REPL))][, 
+                                                                                                 .(CI=paste0("PCTBLQ",100*CI,"%CI"),
+                                                                                                   Q=quantile(PCTBLQSIM, probs = CI)),
+                                                                                                 by = c(stratifyvars,"BIN")],
+                           as.formula(paste0(paste(c(stratifyvars, "BIN"), collapse="+"), "~CI")), value.var = "Q"),
+                     all.x=TRUE, by=c(stratifyvars,"BIN"))
   }
   
-  VPCSTAT <- left_join(VPCSTAT, bins, by=c(stratifyvars,"BIN"))
+  VPCSTAT <- merge(VPCSTAT, bins, all.x=TRUE, by=c(stratifyvars,"BIN"))
   
-  VPCSTAT %>% ungroup()
+  as.data.frame(VPCSTAT)
 }
+
