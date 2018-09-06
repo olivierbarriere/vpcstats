@@ -128,9 +128,10 @@ compute.PI <- function(obsdata = NULL,
           subsetbreaks = semi_join(breaks, data, by=intersect(names(breaks), names(data)))
           data %>% mutate(BIN = as.numeric(cut(!!TIME, subsetbreaks$breaks, include.lowest=T)))
         }
-        
+      
         obsdatabins <- obsdatabins %>% 
-          left_join(obsdatabins %>% do(cutbreaks(., breaks))) #join to preserver original order
+          left_join(obsdatabins %>% do(cutbreaks(., breaks)), #join to preserver original order
+                    by=names(obsdatabins)) 
       }
       
       breaks <- breaks %>% 
