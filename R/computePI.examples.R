@@ -1,10 +1,12 @@
-source("R/computePI.bins.R")
+source("R/Debug/computePI.bins.R")
+source("R/Debug/compare_outputs.R")
 source("R/computePI.R")
 source("R/quantile_cens.R")
 require(ggbeeswarm)
 require(ggplot2)
 require(vpc)
 
+theme_set(theme_bw())
 
 # we go through examples to showcase use case scenarios and functionality
 # at the same time a kind of a validation against vpc package
@@ -60,88 +62,63 @@ system.time(
 )
 
 
-# almost the same 
+# almost the same for vpc and the old compute.PI.bins (~1s), but almost twice as fast for the new computePI (~0.5s)
 
 
 # first example no strata with lloqoof 10
-TESTA <- 
+TESTA0 <- 
   compute.PI.bins(
     data = exampleobs, simdata = examplesim, stratify1 = NULL,
     nbins = NULL, LLOQ = LLOQ, logadditive = FALSE, predcorrection = FALSE
   )
 
-TESTA1 <- 
+TESTA <- 
   compute.PI(
     obsdata = exampleobs, simdata = examplesim, stratify = NULL,
     NBINS = NULL, LLOQ = LLOQ, predcorrection_islogdv = FALSE, predcorrection = FALSE
   )
 
-compare_outputs = function(df1, df2) {
-  arrangevars = names(df2)[1:which(names(df2)=="QNAME")]
-  
-  df1 = df1 %>%
-    ungroup() %>%
-    rename(BIN=BINS,
-           QNAME=quantilename,
-           QLCI=QELCI,
-           QMCI=QEMCI,
-           QUCI=QEUCI,
-           QOBS=quantilevalue) %>%
-    arrange_at(arrangevars)
-  
-  if ("percentblqQELCI" %in% names(df1)) df1 = df1 %>% rename(PCTBLQLCI=percentblqQELCI,
-                                                         PCTBLQMCI=percentblqQEMCI,
-                                                         PCTBLQUCI=percentblqQEUCI, 
-                                                         PCTBLQOBS=percentblq)
-  
-  df2 = df2 %>%
-    arrange_at(arrangevars)
-  
-  sapply(intersect(names(df2),names(df1)), function(n) all.equal(df1 %>% pull(n), df2 %>% pull(n)))
-}
-
-compare_outputs(TESTA, TESTA1)
-
+compare_outputs(TESTA0, TESTA)
+#Same output (beside renaming)
 
 A <- vpc(sim = examplesim, obs = exampleobs,
          pred_corr = FALSE, bins = "none", lloq = 50)
 
 AAA <- ggplot(TESTA) +
   geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (QELCI), ymax = (QEUCI),
-                                fill = quantilename, col = quantilename,
-                                group = quantilename
+                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
+                                fill = DVQNAME, col = DVQNAME,
+                                group = DVQNAME
   ), alpha = 0.1, col = NA) +
   geom_line(data = TESTA, aes(XMED,
-                              y = QEMCI,
-                              col = quantilename, group = quantilename
+                              y = `DV50%CI`,
+                              col = DVQNAME, group = DVQNAME
   )) +
   geom_line(data = TESTA, aes(
-    x = XMED, y = quantilevalue, group = quantilename,
-    linetype = quantilename
+    x = XMED, y = DVOBS, group = DVQNAME,
+    linetype = DVQNAME
   ), size = 2) +
   geom_hline(yintercept = 50, col = "red") +
   geom_rug(data = TESTA, aes(x = XMIN), sides = "t") +
   geom_rug(data = TESTA, aes(x = XMAX), sides = "t") +
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
-    breaks = c("PLPI", "PMPI", "PUPI", "Percent BLQ"),
+    breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
     values = c("red", "blue", "red", "black"),
     labels = c("5%", "50%", "95%", "Percent BLQ")
   ) +
   scale_fill_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
-    breaks = c("PLPI", "PMPI", "PUPI", "Percent BLQ"),
+    breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
     values = c("red", "blue", "red", "black"),
     labels = c("5%", "50%", "95%", "Percent BLQ")
   ) +
   scale_linetype_manual(
     name = "Observed Percentiles\n(black lines)",
-    breaks = c("PLPI", "PMPI", "PUPI"),
+    breaks = c("5%PI", "50%PI", "95%PI"),
     values = c("dotted", "solid", "dashed"),
     labels = c("5%", "50%", "95%")
   ) +
-  theme_bw(base_size = 20) +
   guides(
     fill = guide_legend(order = 2),
     colour = guide_legend(order = 2),
@@ -153,7 +130,7 @@ AAA <- ggplot(TESTA) +
   )
 egg::ggarrange(AAA, A)
 
-# for now keepign raw ggplto as it enables use to do the customization you want
+# for now keepign raw ggplot as it enables use to do the customization you want
 
 ###########################
 #############
@@ -163,17 +140,17 @@ egg::ggarrange(AAA, A)
 exampleobs$LLOQ <- 50
 examplesim$LLOQ <- 50
 
-TESTA <- compute.PI.bins(
+TESTA0 <- compute.PI.bins(
   data = exampleobs, simdata = examplesim, stratify1 = ISM,
   nbins = NULL, LLOQ = LLOQ
 )
 
-TESTA1 <- compute.PI(
+TESTA <- compute.PI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
   NBINS = NULL, LLOQ = LLOQ
 )
 
-compare_outputs(TESTA, TESTA1)
+compare_outputs(TESTA0, TESTA)
 
 A <- vpc(
   sim = examplesim, obs = exampleobs, pred_corr = FALSE, stratify = c("ISM"), # n_bins=5
@@ -183,40 +160,39 @@ A <- vpc(
 AAA <- ggplot(TESTA) +
   facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (QELCI), ymax = (QEUCI),
-                                fill = quantilename, col = quantilename,
-                                group = quantilename
+                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
+                                fill = DVQNAME, col = DVQNAME,
+                                group = DVQNAME
   ), alpha = 0.1, col = NA) +
   geom_line(data = TESTA, aes(XMED,
-                              y = QEMCI,
-                              col = quantilename, group = quantilename
+                              y = `DV50%CI`,
+                              col = DVQNAME, group = DVQNAME
   )) +
   geom_line(data = TESTA, aes(
-    x = XMED, y = quantilevalue, group = quantilename,
-    linetype = quantilename
+    x = XMED, y = DVOBS, group = DVQNAME,
+    linetype = DVQNAME
   ), size = 2) +
   geom_hline(yintercept = 50, col = "red") +
   geom_rug(data = TESTA, aes(x = XMIN), sides = "t") +
   geom_rug(data = TESTA, aes(x = XMAX), sides = "t") +
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
-    breaks = c("PLPI", "PMPI", "PUPI", "Percent BLQ"),
+    breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
     values = c("red", "blue", "red", "black"),
     labels = c("5%", "50%", "95%", "Percent BLQ")
   ) +
   scale_fill_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
-    breaks = c("PLPI", "PMPI", "PUPI", "Percent BLQ"),
+    breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
     values = c("red", "blue", "red", "black"),
     labels = c("5%", "50%", "95%", "Percent BLQ")
   ) +
   scale_linetype_manual(
     name = "Observed Percentiles\n(black lines)",
-    breaks = c("PLPI", "PMPI", "PUPI"),
+    breaks = c("5%PI", "50%PI", "95%PI"),
     values = c("dotted", "solid", "dashed"),
     labels = c("5%", "50%", "95%")
   ) +
-  theme_bw(base_size = 20) +
   guides(
     fill = guide_legend(order = 2),
     colour = guide_legend(order = 2),
@@ -231,42 +207,41 @@ egg::ggarrange(AAA, A)
 #
 
 
-BBB <- ggplot(TESTA[TESTA$quantilename == "PLPI", ]) +
+BBB <- ggplot(TESTA[TESTA$DVQNAME == TESTA$DVQNAME[1], ]) +
   facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (percentblqQELCI), ymax = (percentblqQEUCI),
-                                fill = blqquantilename, col = blqquantilename,
-                                group = blqquantilename
+                                ymin = (`PCTBLQ2.5%CI`), ymax = (`PCTBLQ97.5%CI`),
+                                fill = PCTBLQQNAME, col = PCTBLQQNAME,
+                                group = PCTBLQQNAME
   ), alpha = 0.1, col = NA) +
   geom_line(data = TESTA, aes(XMED,
-                              y = percentblqQEMCI,
-                              col = blqquantilename, group = blqquantilename
+                              y = `PCTBLQ50%CI`,
+                              col = PCTBLQQNAME, group = PCTBLQQNAME
   )) +
   geom_line(data = TESTA, aes(
-    x = XMED, y = percentblq, group = blqquantilename,
-    linetype = blqquantilename
+    x = XMED, y = PCTBLQOBS, group = PCTBLQQNAME,
+    linetype = PCTBLQQNAME
   ), size = 2) +
   geom_rug(data = TESTA, aes(x = XMIN), inherit.aes = FALSE, sides = "t") +
   geom_rug(data = TESTA, aes(x = XMAX), inherit.aes = FALSE, sides = "t") +
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
-    breaks = c("PLPI", "PMPI", "PUPI", "percentblq"),
+    breaks = c("5%PI", "50%PI", "95%PI", "PercentBLQ"),
     values = c("red", "blue", "red", "black"),
     labels = c("5%", "50%", "95%", "Percent BLQ")
   ) +
   scale_fill_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
-    breaks = c("PLPI", "PMPI", "PUPI", "percentblq"),
+    breaks = c("5%PI", "50%PI", "95%PI", "PercentBLQ"),
     values = c("red", "blue", "red", "black"),
     labels = c("5%", "50%", "95%", "Percent BLQ")
   ) +
   scale_linetype_manual(
     name = "Observed Percentiles\n(black lines)",
-    breaks = c("PLPI", "PMPI", "PUPI"),
+    breaks = c("5%PI", "50%PI", "95%PI"),
     values = c("dotted", "solid", "dashed"),
     labels = c("5%", "50%", "95%")
   ) +
-  theme_bw(base_size = 20) +
   guides(
     fill = guide_legend(order = 2),
     colour = guide_legend(order = 2),
@@ -290,17 +265,17 @@ egg::ggarrange(AAA+
 exampleobs$LLOQ <- ifelse(exampleobs$ISM == 0, 100, 25)
 examplesim$LLOQ <- ifelse(examplesim$ISM == 0, 100, 25)
 
-TESTA <- compute.PI.bins(
+TESTA0 <- compute.PI.bins(
   data = exampleobs, simdata = examplesim, stratify1 = ISM,
   nbins = NULL, LLOQ = LLOQ
 )
 
-TESTA1 <- compute.PI(
+TESTA <- compute.PI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
   NBINS = NULL, LLOQ = LLOQ
 )
 
-compare_outputs(TESTA, TESTA1)
+compare_outputs(TESTA0, TESTA)
 
 
 A <- vpc(
@@ -331,17 +306,17 @@ IDCOV <- sample(unique(exampleobs$ID), 25, replace = FALSE)
 exampleobs$ISF <- ifelse(exampleobs$ID %in% IDCOV, 1, 0)
 examplesim$ISF <- rep(exampleobs$ISF, 100)
 
-TESTA <- compute.PI.bins(
+TESTA0 <- compute.PI.bins(
   data = exampleobs, simdata = examplesim,
   nbins = NULL, LLOQ = LLOQ, stratify1 = ISM, stratify2 = ISF
 )
 
-TESTA1 <- compute.PI(
+TESTA <- compute.PI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM+ISF,
   NBINS = NULL, LLOQ = LLOQ
 )
 
-compare_outputs(TESTA, TESTA1)
+compare_outputs(TESTA0, TESTA)
 
 A <- vpc(
   sim = examplesim, obs = exampleobs, pred_corr = FALSE, stratify = c("ISM", "ISF"), # n_bins=5
@@ -352,18 +327,50 @@ A <- vpc(
 ggplot(TESTA) +
   facet_wrap(ISF ~ ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (QELCI), ymax = (QEUCI),
-                                fill = quantilename, col = quantilename,
-                                group = quantilename
+                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
+                                fill = DVQNAME, col = DVQNAME,
+                                group = DVQNAME
   ), alpha = 0.1, col = NA) +
   geom_line(data = TESTA, aes(XMED,
-                              y = QEMCI,
-                              col = quantilename, group = quantilename
+                              y = `DV50%CI`,
+                              col = DVQNAME, group = DVQNAME
   )) +
   geom_line(data = TESTA, aes(
-    x = XMED, y = quantilevalue, group = quantilename,
-    linetype = quantilename
+    x = XMED, y = DVOBS, group = DVQNAME,
+    linetype = DVQNAME
   ), inherit.aes = FALSE, size = 2)
+
+
+# Binning strategy global (vpc) or by group (computePI)
+# truncate data by ISM
+exampleobs1=simple_data$obs %>% filter(MDV==0 & ((ISM==0 & TIME>=2) | (ISM==1 & TIME<=6)))
+examplesim1=simple_data$sim %>% filter(MDV==0 & ((ISM==0 & TIME>=2) | (ISM==1 & TIME<=6)))
+n_bins = 5
+A <- vpc(sim = examplesim1, obs = exampleobs1, stratify="ISM", bins="jenks", n_bins=n_bins) 
+AA <- vpc(sim = examplesim1, obs = exampleobs1, stratify="ISM", bins="jenks", n_bins=n_bins, vpcdb=T) 
+AA$vpc_dat
+AA$aggr_obs
+vpc:::auto_bin(exampleobs1 %>% mutate(idv=TIME), type="jenks", n_bins=n_bins)
+vpc::bin_data
+#uses cut(right=F), so I updated computePI to use the same.
+
+#n global bins
+B <- compute.PI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=F)
+pvpc <- function(data) {
+  ggplot(data, aes(x=XMID))+
+  geom_ribbon(aes(ymin=`DV2.5%CI`, ymax=`DV97.5%CI`, fill=DVQNAME))+
+  geom_line(aes(y=DVOBS, linetype=DVQNAME))+
+  geom_rug(aes(x=XLEFT), sides="bt")+
+  geom_rug(aes(x=XRIGHT), sides="bt")+
+  facet_wrap(~ISM)
+}
+egg::ggarrange(A, pvpc(B))  
+#Same
+
+#nbins per strata
+C <- compute.PI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=T)
+egg::ggarrange(A, pvpc(B), pvpc(C))  
+
 
 # to do list make the plotting a function that retrun ggplot object ready to be ggrranged
 
@@ -389,17 +396,17 @@ simdata <- simdata[simdata$TIME > 120, ]
 
 # source("computePI.method.strat.R")
 
-PKPDVPC <- compute.PI.bins(
+PKPDVPC0 <- compute.PI.bins(
   data = obsdata, simdata = simdata, TIME = TIME, REPL = REPL,
   nbins = NULL, LLOQ = NULL, stratify1 = DVTYPE, stratify2 = NULL, predcorrection = FALSE
 )
 
-PKPDVPC1 <- compute.PI(
+PKPDVPC <- compute.PI(
   obsdata = obsdata, simdata = simdata, TIME = TIME, REPL = REPL,
   NBINS = NULL, LLOQ = NULL, stratify = ~DVTYPE, predcorrection = FALSE
 )
 
-compare_outputs(PKPDVPC, PKPDVPC1)
+compare_outputs(PKPDVPC0, PKPDVPC)
 
 
 AAA <- vpc(
@@ -413,17 +420,17 @@ AAA <- AAA + facet_wrap(~DVTYPE, scales = "free_y")
 BBB <- ggplot(PKPDVPC) +
   facet_wrap(~DVTYPE, labeller = label_wrap_gen(multi_line = FALSE), ncol = 3, scales = "free_y") +
   geom_ribbon(data = PKPDVPC, aes(XMID,
-                                  ymin = (QELCI), ymax = (QEUCI),
-                                  fill = quantilename, col = quantilename,
-                                  group = quantilename
+                                  ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
+                                  fill = DVQNAME, col = DVQNAME,
+                                  group = DVQNAME
   ), alpha = 0.1, col = NA) +
   geom_line(data = PKPDVPC, aes(XMID,
-                                y = QEMCI,
-                                col = quantilename, group = quantilename
+                                y = `DV50%CI`,
+                                col = DVQNAME, group = DVQNAME
   )) +
   geom_line(data = PKPDVPC, aes(
-    x = XMID, y = quantilevalue, group = quantilename,
-    linetype = quantilename
+    x = XMID, y = DVOBS, group = DVQNAME,
+    linetype = DVQNAME
   ), inherit.aes = FALSE, size = 2)
 egg::ggarrange(AAA, BBB)
 
@@ -434,30 +441,29 @@ egg::ggarrange(AAA, BBB)
 
 ggplot(PKPDVPC) +
   geom_ribbon(aes(XMID,
-                  ymin = (QELCI), ymax = (QEUCI),
-                  fill = quantilename, col = quantilename,
-                  group = quantilename
+                  ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
+                  fill = DVQNAME, col = DVQNAME,
+                  group = DVQNAME
   ), alpha = 0.1, col = NA) +
   facet_wrap(~DVTYPE, labeller = label_wrap_gen(multi_line = FALSE), ncol = 3, scales = "free_y") +
-  geom_line(aes(XMID, y = QEMCI, col = quantilename, group = quantilename)) +
+  geom_line(aes(XMID, y = `DV50%CI`, col = DVQNAME, group = DVQNAME)) +
   geom_line(aes(
-    x = XMID, y = quantilevalue, group = quantilename,
+    x = XMID, y = DVOBS, group = DVQNAME,
     linetype = "Observed"
   ), inherit.aes = FALSE, size = 1.5) +
   scale_linetype_manual(name = "", breaks = c("Observed"), values = c("dashed")) +
   scale_fill_manual(
     name = "Prediction Intervals 95% CI (ribbons)\nMedian Predictions (solid lines)",
-    breaks = c("PLPI", "PMPI", "PUPI", "Obs"),
+    breaks = c("5%PI", "50%PI", "95%PI", "Obs"),
     labels = c("5%", "50%", "95%", "Obs"),
     values = c("#2c7fb8", "#df65b0", "#2c7fb8")
   ) +
   scale_colour_manual(
     name = "Prediction Intervals 95% CI (ribbons)\nMedian Predictions (solid lines)",
-    breaks = c("PLPI", "PMPI", "PUPI"),
+    breaks = c("5%PI", "50%PI", "95%PI"),
     labels = c("5%", "50%", "95%"),
     values = c("#2c7fb8", "#df65b0", "#2c7fb8")
   ) +
-  theme_bw(base_size = 20) +
   theme(legend.position = "bottom", axis.text.x = element_text(angle = 30)) +
   ylab("Obs/Simulated") +
   xlab("Time (h)") +
@@ -498,23 +504,23 @@ simquantiles <- simdata %>%
   )
 require(tidyr)
 VPCSTATPLOT2 <- simquantiles %>%
-  gather(quantilename, quantile, -DVTYPE, -TIME)
+  gather(DVQNAME, quantile, -DVTYPE, -TIME)
 
 
 
 VPCSTATPLOT2 <- VPCSTATPLOT2 %>%
-  mutate(PI = if_else(quantilename == "P05", "90%PI",
-                      if_else(quantilename == "P10", "80%PI",
-                              if_else(quantilename == "P15", "70%PI",
-                                      if_else(quantilename == "P25", "50%PI",
-                                              if_else(quantilename == "P375", "25%PI",
+  mutate(PI = if_else(DVQNAME == "P05", "90%PI",
+                      if_else(DVQNAME == "P10", "80%PI",
+                              if_else(DVQNAME == "P15", "70%PI",
+                                      if_else(DVQNAME == "P25", "50%PI",
+                                              if_else(DVQNAME == "P375", "25%PI",
                                                       
-                                                      if_else(quantilename == "P95", "90%PI",
-                                                              if_else(quantilename == "P90", "80%PI",
-                                                                      if_else(quantilename == "P85", "70%PI",
-                                                                              if_else(quantilename == "P625", "25%PI",
+                                                      if_else(DVQNAME == "P95", "90%PI",
+                                                              if_else(DVQNAME == "P90", "80%PI",
+                                                                      if_else(DVQNAME == "P85", "70%PI",
+                                                                              if_else(DVQNAME == "P625", "25%PI",
                                                                                       
-                                                                                      if_else(quantilename == "P75", "50%PI",
+                                                                                      if_else(DVQNAME == "P75", "50%PI",
                                                                                               "Median"
                                                                                       )
                                                                               )
@@ -529,16 +535,16 @@ VPCSTATPLOT2 <- VPCSTATPLOT2 %>%
 
 
 VPCSTATPLOT2 <- VPCSTATPLOT2 %>%
-  mutate(PILIMIT = if_else(quantilename == "P05", "PILOW",
-                           if_else(quantilename == "P10", "PILOW",
-                                   if_else(quantilename == "P15", "PILOW",
-                                           if_else(quantilename == "P25", "PILOW",
-                                                   if_else(quantilename == "P375", "PILOW",
-                                                           if_else(quantilename == "P625", "PIUP",
-                                                                   if_else(quantilename == "P95", "PIUP",
-                                                                           if_else(quantilename == "P90", "PIUP",
-                                                                                   if_else(quantilename == "P85", "PIUP",
-                                                                                           if_else(quantilename == "P75", "PIUP", "Median")
+  mutate(PILIMIT = if_else(DVQNAME == "P05", "PILOW",
+                           if_else(DVQNAME == "P10", "PILOW",
+                                   if_else(DVQNAME == "P15", "PILOW",
+                                           if_else(DVQNAME == "P25", "PILOW",
+                                                   if_else(DVQNAME == "P375", "PILOW",
+                                                           if_else(DVQNAME == "P625", "PIUP",
+                                                                   if_else(DVQNAME == "P95", "PIUP",
+                                                                           if_else(DVQNAME == "P90", "PIUP",
+                                                                                   if_else(DVQNAME == "P85", "PIUP",
+                                                                                           if_else(DVQNAME == "P75", "PIUP", "Median")
                                                                                    )
                                                                            )
                                                                    )
@@ -552,14 +558,14 @@ VPCSTATPLOT2 <- VPCSTATPLOT2 %>%
 
 
 VPCSTATPLOTWIDE <- VPCSTATPLOT2 %>%
-  select(-quantilename) %>%
+  select(-DVQNAME) %>%
   filter(PILIMIT != "Median")
 VPCSTATPLOTWIDE <- VPCSTATPLOTWIDE %>%
   tidyr::spread(PILIMIT, quantile)
 
 
 VPCSTATPLOTWIDEMedian <- VPCSTATPLOT2 %>%
-  select(-quantilename) %>%
+  select(-DVQNAME) %>%
   filter(PILIMIT == "Median")
 VPCSTATPLOTWIDEMedian <- VPCSTATPLOTWIDEMedian %>%
   tidyr::spread(PILIMIT, quantile)
@@ -576,7 +582,6 @@ ggplot(VPCSTATPLOTWIDE, aes(TIME,
     size = 2
   ) +
   geom_quasirandom(data = obsdata, aes(TIME, DV), inherit.aes = FALSE, alpha = 0.05, size = 2, width = 0.5) +
-  theme_bw(base_size = 22) +
   scale_fill_manual(values = c("#009ACDFF", "#009ACDFF", "#009ACDFF", "#009ACDFF", "#009ACDFF")) +
   theme(
     legend.position = "right",
