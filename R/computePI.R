@@ -13,8 +13,10 @@ require(classInt)
 #' @param REPL Replication Index column: a name
 #' @param LLOQ LLOQ column: a name, an expression, or a fixed value
 #' @param NBINS NBINS column: a name, an expression, or a fixed value
+#' @param bin_by_strata Flag to indicate if the binning is by strata (default) or global
 #' @param style Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)
 #' @param breaks User defined breaks: either a vector or a wide data.frame with a column "breaks", and other colums corresponding to the stratify variables
+#' @param cut_right Flag to indicate if the intervals should be closed on the right (and open on the left) or vice versa. Default to False, unlike the cut function.
 #' @param filterblq Flag to remove the BLQ values just before computing the quantiles, but after "merging" with rep(, sim) 
 #' @param predcorrection Flag to indicate if the VPC has to be pred corrected or not
 #' @param predcorrection_islogdv Flag to indicate if the data was log transformed
@@ -37,8 +39,10 @@ compute.PI <- function(obsdata = NULL,
                        REPL = REP,
                        LLOQ = NULL,
                        NBINS = NULL,
+                       bin_by_strata = TRUE,
                        style = "ntile",
-                       breaks = NULL, 
+                       breaks = NULL,
+                       cut_right = FALSE,
                        filterblq = FALSE,
                        predcorrection = FALSE,
                        predcorrection_islogdv = FALSE,
@@ -84,9 +88,9 @@ compute.PI <- function(obsdata = NULL,
   
   if ("ID" %in% names(obsdatabins) & "ID" %in% names(simdatabins)) {
     if (!all.equal(
-    obsdatabins %>% pull(ID),
-    simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID))) {
-    stop("Error: ID's of your Obs and Sim data are not identical")
+      obsdatabins %>% pull(ID),
+      simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID))) {
+      stop("Error: ID's of your Obs and Sim data are not identical")
     }
   }
   
@@ -99,11 +103,6 @@ compute.PI <- function(obsdata = NULL,
   
   stratifyvars <- all.vars(stratify)
   
-  obsdatabins <- obsdatabins %>%
-    group_by_at(stratifyvars)
-  simdatabins <- simdatabins %>%
-    group_by_at(stratifyvars)
-  
   if (!quo_is_null(LLOQ)) {
     obsdatabins <- obsdatabins %>%
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
@@ -111,6 +110,13 @@ compute.PI <- function(obsdata = NULL,
     simdatabins <- simdatabins %>%
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
   }
+  
+  if (bin_by_strata) {
+    obsdatabins <- obsdatabins %>%
+      group_by_at(stratifyvars)
+  }
+  simdatabins <- simdatabins %>%
+    group_by_at(stratifyvars)
   
   if (quo_is_null(NBINS) & is.null(breaks)) {
     obsdatabins <- obsdatabins %>%
@@ -121,25 +127,18 @@ compute.PI <- function(obsdata = NULL,
         breaks <- data.frame(breaks=breaks)
         
         obsdatabins <- obsdatabins %>%
-          mutate(BIN = as.numeric(cut(!!TIME, breaks$breaks, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, breaks$breaks, right=cut_right, include.lowest=T)))
         
       } else {
         cutbreaks <- function(data, breaks) {
           subsetbreaks = semi_join(breaks, data, by=intersect(names(breaks), names(data)))
-          data %>% mutate(BIN = as.numeric(cut(!!TIME, subsetbreaks$breaks, include.lowest=T)))
+          data %>% mutate(BIN = as.numeric(cut(!!TIME, subsetbreaks$breaks, right=cut_right, include.lowest=T)))
         }
-      
+        
         obsdatabins <- obsdatabins %>% 
           left_join(obsdatabins %>% do(cutbreaks(., breaks)), #join to preserver original order
                     by=names(obsdatabins)) 
       }
-      
-      breaks <- breaks %>% 
-        group_by_at(intersect(group_vars(obsdatabins), names(breaks %>% select(-breaks)))) %>%
-        mutate(BIN = seq_len(n()),
-               XLEFT = breaks,
-               XRIGHT = c(breaks[-1],NA)) %>%
-        select(-breaks)
       
     } else { 
       if (!is.null(style) && style == "ntile") {
@@ -147,14 +146,21 @@ compute.PI <- function(obsdata = NULL,
           mutate(BIN = ntile(!!TIME, !!NBINS))
       } else if (!is.null(style) && style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
         obsdatabins <- obsdatabins %>%
-          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=style)$brks, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=style)$brks, right=cut_right, include.lowest=T)))
+        
+        breaks <- obsdatabins %>%
+          mutate(TIME = !!TIME,
+                 NBINS = !!NBINS) %>%
+          select_at(c(stratifyvars, "TIME","NBINS")) %>%
+          do(data.frame(breaks = classIntervals(.$TIME, n=unique(.$NBINS), style=style)$brks))
       } else {
         stop("Error: Unknown style")
       }
     }
   }
-  
+
   obsdatabins <- obsdatabins %>%
+    group_by_at(stratifyvars) %>% #Now that the binning is done, unconditionnaly group by strata (even if bin_by_strata is false)
     group_by(BIN, add = TRUE) %>%
     mutate(XMIN = min(!!TIME),
            XMAX = max(!!TIME),
@@ -172,6 +178,13 @@ compute.PI <- function(obsdata = NULL,
       mutate(XLEFT = (XMIN+c(XMIN[1],XMAX[-length(XMAX)]))/2, #Min and max left and right boundaries
              XRIGHT = (XMAX+c(XMIN[-1],XMAX[length(XMAX)]))/2) %>%
       select(-XMIN, -XMAX)
+  } else {
+    breaks <- breaks %>% 
+      group_by_at(intersect(stratifyvars, names(breaks %>% select(-breaks)))) %>%
+      mutate(BIN = seq_len(n()),
+             XLEFT = breaks,
+             XRIGHT = c(breaks[-1],NA)) %>%
+      select(-breaks)
   }
   
   if (quo_is_null(LLOQ)) {
@@ -186,11 +199,13 @@ compute.PI <- function(obsdata = NULL,
   bins <- bins %>%
     left_join(breaks, by=intersect(names(bins), names(breaks)))
   
-  bins %>%
-    group_by_at(stratifyvars) %>%
+  breaks <- breaks %>% filter(BIN %in% unique(bins$BIN)) 
+  stratifyvarsbreaks <- intersect(stratifyvars, names(breaks))
+  breaks %>%
+    group_by_at(stratifyvarsbreaks) %>%
     do({
-      if (length(stratifyvars)>0) {
-        uv <- t(unique(.[,stratifyvars]))
+      if (length(stratifyvarsbreaks)>0) {
+        uv <- t(unique(.[,stratifyvarsbreaks]))
         msg1 <- paste0(paste(apply(uv, 2, function(x) paste(rownames(uv), x, sep="=")), collapse=", "), " ")
       } else {
         msg1 <- ""
@@ -228,20 +243,21 @@ compute.PI <- function(obsdata = NULL,
   
   if (quo_is_null(LLOQ)) {
     PIobs <- as.data.table(obsdatabins)[, 
-                                        .(DVPI=paste0("",100*PI,"%"),
+                                        .(DVQNAME=paste0("",100*PI,"%PI"),
                                           DVOBS=quantile(DVC, probs = PI)),
                                         by = c(stratifyvars,"BIN")]    
     
   } else {
-    PIobs <- as.data.table(obsdatabins %>% #Don't know how to use !! inside data.table
-                             mutate(LLOQ = !!LLOQ))[,  
-                                                    .(DVPI=paste0("",100*PI,"%"),
+    PIobs <- as.data.table(obsdatabins %>% 
+                             mutate(LLOQ = !!LLOQ))[, #Don't know how to use !! inside data.table  
+                                                    .(DVQNAME=paste0("",100*PI,"%PI"),
                                                       DVOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ))),
                                                     by = c(stratifyvars,"BIN")]
     PCTBLQobs <- as.data.table(obsdatabins)[, 
                                             .(PCTBLQOBS = 100 * mean(LLOQFL)),
                                             by = c(stratifyvars,"BIN")]   
-    PIobs <- merge(PIobs, PCTBLQobs, all.x=TRUE, by=c(stratifyvars,"BIN"))
+    PIobs <- cbind(PCTBLQQNAME = "PercentBLQ",
+                   merge(PIobs, PCTBLQobs, all.x=TRUE, by=c(stratifyvars,"BIN")))
   }
   
   if (predcorrection) {
@@ -259,16 +275,16 @@ compute.PI <- function(obsdata = NULL,
       dplyr::mutate(DVC = !!DV)
   }
   PIsim <- as.data.table(simdatabins)[, 
-                                      .(DVPI=paste0("",100*PI,"%"),
+                                      .(DVQNAME=paste0("",100*PI,"%PI"),
                                         DVSIM=quantile(DVC, probs = PI)),
                                       by = c(stratifyvars,"BIN",quo_name(REPL))]
   VPCSTAT <- PIsim[, 
                    .(CI=paste0("DV",100*CI,"%CI"),
                      Q=quantile(DVSIM, probs = CI)),
-                   by = c(stratifyvars,"BIN","DVPI")]
-  VPCSTAT <- dcast(VPCSTAT, as.formula(paste0(paste(c(stratifyvars, "BIN", "DVPI"), collapse="+"), "~CI")), value.var = "Q")
+                   by = c(stratifyvars,"BIN","DVQNAME")]
+  VPCSTAT <- dcast(VPCSTAT, as.formula(paste0(paste(c(stratifyvars, "BIN", "DVQNAME"), collapse="+"), "~CI")), value.var = "Q")
   
-  VPCSTAT <- merge(VPCSTAT, PIobs, all.x=TRUE, by=c(stratifyvars,"BIN","DVPI"))
+  VPCSTAT <- merge(VPCSTAT, PIobs, all.x=TRUE, by=c(stratifyvars,"BIN","DVQNAME"))
   
   if (!quo_is_null(LLOQ)) {
     VPCSTAT <- merge(VPCSTAT,
@@ -284,6 +300,6 @@ compute.PI <- function(obsdata = NULL,
   
   VPCSTAT <- merge(VPCSTAT, bins, all.x=TRUE, by=c(stratifyvars,"BIN"))
   
-  as.data.frame(VPCSTAT %>% mutate(DVPIN=as.numeric(gsub("%","",DVPI))) %>% arrange_at(c(stratifyvars,"BIN", "DVPIN")) %>% select(-DVPIN))
+  as.data.frame(VPCSTAT %>% mutate(DVNAMEN=as.numeric(gsub("%PI","",DVQNAME))) %>% arrange_at(c(stratifyvars,"BIN", "DVNAMEN")) %>% select(-DVNAMEN))
 }
 
