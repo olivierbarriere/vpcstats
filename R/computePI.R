@@ -191,12 +191,13 @@ compute.PI <- function(obsdata = NULL,
     do({
       if (length(stratifyvars)>0) {
         uv <- t(unique(.[,stratifyvars]))
-        msg1 <- paste0(paste(apply(uv, 2, function(x) paste(rownames(uv), x, sep="=")), collapse=", "), ": ")
+        msg1 <- paste0(paste(apply(uv, 2, function(x) paste(rownames(uv), x, sep="=")), collapse=", "), " ")
       } else {
         msg1 <- ""
       }
-      msg2 <- paste(signif(sort(c(min(.$XLEFT), .$XRIGHT)),3), collapse=" < ")
-      message(paste0(msg1, msg2))
+      msg2 <- paste0("[",length(.$XRIGHT),"] ")
+      msg3 <- paste(signif(sort(c(min(.$XLEFT), .$XRIGHT)),3), collapse=" < ")
+      message(paste0(msg1, msg2, msg3))
       
       data.frame()
     })
