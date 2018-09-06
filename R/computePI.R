@@ -82,10 +82,12 @@ compute.PI <- function(obsdata = NULL,
     stop("Error: Sim dataset length is not a multiple of obs dataset length")
   }
   
-  if (!all.equal(
+  if ("ID" %in% names(obsdatabins) & "ID" %in% names(simdatabins)) {
+    if (!all.equal(
     obsdatabins %>% pull(ID),
     simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID))) {
     stop("Error: ID's of your Obs and Sim data are not identical")
+    }
   }
   
   if (!all.equal(
