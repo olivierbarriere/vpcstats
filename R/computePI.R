@@ -167,7 +167,7 @@ compute.PI <- function(obsdata = NULL,
     mutate(XMIN = min(!!TIME),
            XMAX = max(!!TIME),
            XMED = median(!!TIME),
-           XMID = median(c(XMIN, XMAX)),
+           XMEAN = mean(!!TIME),
            NOBS = length(DV))
   
   if (is.null(breaks)) {
@@ -191,15 +191,19 @@ compute.PI <- function(obsdata = NULL,
   
   if (quo_is_null(LLOQ)) {
     bins <- obsdatabins %>%
-      distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS)
+      distinct(BIN, XMIN, XMAX, XMED, XMEAN, NOBS)
   } else {
     bins <- obsdatabins %>%
       mutate(LLOQ = !!LLOQ) %>%
-      distinct(BIN, XMIN, XMAX, XMED, XMID, NOBS, LLOQ) #Warning, can produce unexpected results if LLOQ is not unique within each strata
+      distinct(BIN, XMIN, XMAX, XMED, XMEAN, NOBS, LLOQ) #Warning, can produce unexpected results if LLOQ is not unique within each strata
   }
   
   bins <- bins %>%
     left_join(breaks, by=intersect(names(bins), names(breaks)))
+  
+  bins <- bins %>%
+    mutate(XMID = median(c(XMIN, XMAX)),
+           XCENTER = median(c(XLEFT, XRIGHT)))
   
   breaks <- breaks %>% filter(BIN %in% unique(bins$BIN)) 
   stratifyvarsbreaks <- intersect(stratifyvars, names(breaks))
