@@ -24,6 +24,7 @@ require(classInt)
 #' @param PI Prediction Intervals: vector of any number of  values
 #' @param CI Confidence Intervals around the Prediction Intervals : vector of any number of value
 #' @param bootstrapobsdata Not used yet
+#' @param sort_output Output sorted by strata, bin, and quantile of dv
 #'
 #' @return
 #' @export
@@ -49,7 +50,8 @@ compute.PI <- function(obsdata = NULL,
                        predcorrection_lowerbnd = 0,
                        PI = c(0.05, 0.5, 0.95),
                        CI = c(0.025, 0.5, 0.975),
-                       bootstrapobsdata = FALSE) {
+                       bootstrapobsdata = FALSE,
+                       sort_output = TRUE) {
   
   NBINS <- enquo(NBINS)
   if (quo_is_null(NBINS)) {
@@ -158,7 +160,7 @@ compute.PI <- function(obsdata = NULL,
       }
     }
   }
-
+  
   obsdatabins <- obsdatabins %>%
     group_by_at(stratifyvars) %>% #Now that the binning is done, unconditionnaly group by strata (even if bin_by_strata is false)
     group_by(BIN, add = TRUE) %>%
@@ -274,6 +276,7 @@ compute.PI <- function(obsdata = NULL,
     simdatabins <- simdatabins %>%
       dplyr::mutate(DVC = !!DV)
   }
+  
   PIsim <- as.data.table(simdatabins)[, 
                                       .(DVQNAME=paste0("",100*PI,"%PI"),
                                         DVSIM=quantile(DVC, probs = PI)),
@@ -300,6 +303,10 @@ compute.PI <- function(obsdata = NULL,
   
   VPCSTAT <- merge(VPCSTAT, bins, all.x=TRUE, by=c(stratifyvars,"BIN"))
   
-  as.data.frame(VPCSTAT %>% mutate(DVNAMEN=as.numeric(gsub("%PI","",DVQNAME))) %>% arrange_at(c(stratifyvars,"BIN", "DVNAMEN")) %>% select(-DVNAMEN))
+  if (sort_output) {
+    VPCSTAT <- VPCSTAT %>% mutate(DVQNAMEN=as.numeric(gsub("%PI","",DVQNAME))) %>% arrange_at(c(stratifyvars,"BIN", "DVQNAMEN")) %>% select(-DVQNAMEN)
+  }
+  
+  as.data.frame(VPCSTAT)
 }
 
