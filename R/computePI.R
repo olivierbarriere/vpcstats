@@ -20,7 +20,6 @@ require(data.table)
 #' @param PI Prediction Intervals: vector of any number of  values
 #' @param CI Confidence Intervals around the Prediction Intervals : vector of any number of value
 #' @param bootstrapobsdata Not used yet
-#' @param sort_output Output sorted by strata, bin, and quantile of dv
 #'
 #' @return
 #' @export
@@ -29,25 +28,24 @@ require(data.table)
 
 
 computePI <- function(obsdata = NULL,
-                       simdata,
-                       stratify = NULL,
-                       TIME = TIME,
-                       DV = DV,
-                       REPL = REP,
-                       LLOQ = NULL,
-                       NBINS = NULL,
-                       bin_by_strata = TRUE,
-                       style = "ntile",
-                       breaks = NULL,
-                       cut_right = FALSE,
-                       filterblq = FALSE,
-                       predcorrection = FALSE,
-                       predcorrection_islogdv = FALSE,
-                       predcorrection_lowerbnd = 0,
-                       PI = c(0.05, 0.5, 0.95),
-                       CI = c(0.025, 0.5, 0.975),
-                       bootstrapobsdata = FALSE,
-                       sort_output = TRUE) {
+                      simdata,
+                      stratify = NULL,
+                      TIME = TIME,
+                      DV = DV,
+                      REPL = REP,
+                      LLOQ = NULL,
+                      NBINS = NULL,
+                      bin_by_strata = TRUE,
+                      style = "ntile",
+                      breaks = NULL,
+                      cut_right = FALSE,
+                      filterblq = FALSE,
+                      predcorrection = FALSE,
+                      predcorrection_islogdv = FALSE,
+                      predcorrection_lowerbnd = 0,
+                      PI = c(0.05, 0.5, 0.95),
+                      CI = c(0.025, 0.5, 0.975),
+                      bootstrapobsdata = FALSE) {
   
   NBINS <- enquo(NBINS)
   if (quo_is_null(NBINS)) {
@@ -245,19 +243,18 @@ computePI <- function(obsdata = NULL,
   
   if (quo_is_null(LLOQ)) {
     PIobs <- data.table::as.data.table(obsdatabins)[, 
-                                        .(DVQNAME=paste0("",100*PI,"%PI"),
-                                          DVOBS=quantile(DVC, probs = PI, na.rm=T)),
-                                        by = c(stratifyvars,"BIN")]    
+                                                    .(QNAME=paste0("",100*PI,"%PI"),
+                                                      OBS=quantile(DVC, probs = PI, na.rm=T)),
+                                                    by = c(stratifyvars,"BIN")]    
     
   } else {
     PIobs <- data.table::as.data.table(obsdatabins %>% 
-                             mutate(LLOQ = !!LLOQ))[, #Don't know how to use !! inside data.table  
-                                                    .(DVQNAME=paste0("",100*PI,"%PI"),
-                                                      DVOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ, na.rm=T))),
-                                                    by = c(stratifyvars,"BIN")]
+                                         mutate(LLOQ = !!LLOQ))[, #Don't know how to use !! inside data.table  
+                                                                .(QNAME=paste0("",100*PI,"%PI"),
+                                                                  OBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ, na.rm=T))),
+                                                                by = c(stratifyvars,"BIN")]
     PCTBLQobs <- as.data.table(obsdatabins)[, 
-                                            .(PCTBLQQNAME = "PercentBLQ",
-                                              PCTBLQOBS = 100 * mean(LLOQFL)),
+                                            .(OBS = 100 * mean(LLOQFL)),
                                             by = c(stratifyvars,"BIN")]
   }
   
@@ -275,52 +272,45 @@ computePI <- function(obsdata = NULL,
     simdatabins <- simdatabins %>%
       dplyr::mutate(DVC = !!DV)
   }
-
+  
   PIsim <- as.data.table(simdatabins)[, 
-                                      .(DVQNAME=paste0("",100*PI,"%PI"),
-                                        DVSIM=quantile(DVC, probs = PI, na.rm=T)),
+                                      .(QNAME=paste0("",100*PI,"%PI"),
+                                        SIM=quantile(DVC, probs = PI, na.rm=T)),
                                       by = c(stratifyvars,"BIN",quo_name(REPL))]
   
   PI <- PIsim[, 
-              .(CI=paste0("DV",100*CI,"%CI"),
-                Q=quantile(DVSIM, probs = CI, na.rm=T)),
-              by = c(stratifyvars,"BIN","DVQNAME")]
+              .(CI=paste0("",100*CI,"%CI"),
+                Q=quantile(SIM, probs = CI, na.rm=T)),
+              by = c(stratifyvars,"BIN","QNAME")]
   
-  PI <- dcast(PI, as.formula(paste0(paste(c(stratifyvars, "BIN", "DVQNAME"), collapse="+"), "~CI")), value.var = "Q")
+  PI <- dcast(PI, as.formula(paste0(paste(c(stratifyvars, "BIN", "QNAME"), collapse="+"), "~CI")), value.var = "Q")
   
-  PI <- merge(PI, PIobs, all.x=TRUE, by=c(stratifyvars,"BIN","DVQNAME"))
+  PI <- merge(PI, PIobs, all.x=TRUE, by=c(stratifyvars,"BIN","QNAME"))
   
   if (!quo_is_null(LLOQ)) {
     PCTBLQsim <- as.data.table(simdatabins)[, 
-                                            .(PCTBLQQNAME = "PercentBLQ",
-                                              PCTBLQSIM = 100 * mean(LLOQFL)),
+                                            .(SIM = 100 * mean(LLOQFL)),
                                             by = c(stratifyvars,"BIN",quo_name(REPL))]
     
     PCTBLQ <- PCTBLQsim[, 
-                        .(CI=paste0("PCTBLQ",100*CI,"%CI"),
-                          Q=quantile(PCTBLQSIM, probs = CI, na.rm=T)),
-                        by = c(stratifyvars,"BIN","PCTBLQQNAME")]
+                        .(CI=paste0("",100*CI,"%CI"),
+                          Q=quantile(SIM, probs = CI, na.rm=T)),
+                        by = c(stratifyvars,"BIN")]
     
-    PCTBLQ <- dcast(PCTBLQ, as.formula(paste0(paste(c(stratifyvars, "BIN", "PCTBLQQNAME"), collapse="+"), "~CI")), value.var = "Q")
+    PCTBLQ <- dcast(PCTBLQ, as.formula(paste0(paste(c(stratifyvars, "BIN"), collapse="+"), "~CI")), value.var = "Q")
     
-    PCTBLQ <- merge(PCTBLQ, PCTBLQobs, all.x=TRUE, by=c(stratifyvars,"BIN","PCTBLQQNAME"))
+    PCTBLQ <- merge(PCTBLQ, PCTBLQobs, all.x=TRUE, by=c(stratifyvars,"BIN"))
     
   } else {
     PCTBLQ <- NULL 
   }
   
-  # Return a list, as in pi_plot::gg_pi or vpc(..., vpcdb=T)
-  # Advantage, the "DV" and "PCTBLQ" prefixes could be removed! Even PCTBLQQNAME is not very useful (kept for compatibility)
-  #list(PI, PCTBLQ, BINS)
+  PI <- as.data.frame(merge(PI, BINS, all.x=TRUE, by=c(stratifyvars,"BIN")))
+  PCTBLQ <- if (!is.null(PCTBLQ)) as.data.frame(merge(PCTBLQ, BINS, all.x=TRUE, by=c(stratifyvars,"BIN"))) else NULL
+  BINS <- as.data.frame(BINS)
   
-  VPC <- merge(PI,
-                   if (!quo_is_null(LLOQ)) merge(PCTBLQ, BINS, all.x=TRUE, by=c(stratifyvars,"BIN")) else BINS,
-                   all.x=TRUE, by=c(stratifyvars,"BIN"))
-  
-  if (sort_output) {
-    VPC <- VPC %>% mutate(DVQNAMEN=as.numeric(gsub("%PI","",DVQNAME))) %>% arrange_at(c(stratifyvars,"BIN", "DVQNAMEN")) %>% select(-DVQNAMEN)
-  }
-  
-  as.data.frame(VPC)
+  list(PI = PI,
+       PCTBLQ = PCTBLQ,
+       BINS = BINS)
 }
 
