@@ -2,14 +2,15 @@ compare_outputs = function(df1, listdf2) {
 
   df2PI=listdf2$PI %>% rename(DVQNAME=QNAME, DVOBS=OBS)
   names(df2PI)[grepl("%CI$",names(df2PI))] = paste0("DV",names(df2PI)[grepl("%CI$",names(df2PI))])
+  df2=df2PI
   
   df2PCTBLQ=listdf2$PCTBLQ
   if (!is.null(df2PCTBLQ)) {
     df2PCTBLQ=df2PCTBLQ %>% rename(PCTBLQOBS=OBS)
     names(df2PCTBLQ)[grepl("%CI$",names(df2PCTBLQ))] = paste0("PCTBLQ",names(df2PCTBLQ)[grepl("%CI$",names(df2PCTBLQ))])
+    
+    df2=left_join(df2,df2PCTBLQ, by=intersect(names(df2PI), names(df2PCTBLQ)))
   }
-  
-  df2=left_join(df2PI,df2PCTBLQ, by=intersect(names(df2PI), names(df2PCTBLQ)))
   
   arrangevars = names(df2)[1:which(names(df2)=="DVQNAME")]
   

@@ -6,6 +6,7 @@ require(ggbeeswarm)
 require(ggplot2)
 require(vpc)
 require(data.table)
+require(classInt)
 
 theme_set(theme_bw())
 
@@ -85,23 +86,23 @@ compare_outputs(TESTA0, TESTA)
 A <- vpc(sim = examplesim, obs = exampleobs,
          pred_corr = FALSE, bins = "none", lloq = 50)
 
-AAA <- ggplot(TESTA) +
-  geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
-                                fill = DVQNAME, col = DVQNAME,
-                                group = DVQNAME
+AAA <- ggplot(TESTA$PI) +
+  geom_ribbon(aes(XMED,
+                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                                fill = QNAME, col = QNAME,
+                                group = QNAME
   ), alpha = 0.1, col = NA) +
-  geom_line(data = TESTA, aes(XMED,
-                              y = `DV50%CI`,
-                              col = DVQNAME, group = DVQNAME
+  geom_line(aes(XMED,
+                              y = `50%CI`,
+                              col = QNAME, group = QNAME
   )) +
-  geom_line(data = TESTA, aes(
-    x = XMED, y = DVOBS, group = DVQNAME,
-    linetype = DVQNAME
+  geom_line(aes(
+    x = XMED, y = OBS, group = QNAME,
+    linetype = QNAME
   ), size = 2) +
   geom_hline(yintercept = 50, col = "red") +
-  geom_rug(data = TESTA, aes(x = XMIN), sides = "t") +
-  geom_rug(data = TESTA, aes(x = XMAX), sides = "t") +
+  geom_rug(data = TESTA$BINS, aes(x = XMIN), sides = "t") +
+  geom_rug(data = TESTA$BINS, aes(x = XMAX), sides = "t") +
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
     breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
@@ -146,7 +147,7 @@ TESTA0 <- compute.PI.bins(
   nbins = NULL, LLOQ = LLOQ
 )
 
-TESTA <- compute.PI(
+TESTA <- computePI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
   NBINS = NULL, LLOQ = LLOQ
 )
@@ -158,24 +159,25 @@ A <- vpc(
   lloq = 50
 )
 
-AAA <- ggplot(TESTA) +
+AAA <- ggplot(TESTA$PI) +
   facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
-  geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
-                                fill = DVQNAME, col = DVQNAME,
-                                group = DVQNAME
+  geom_ribbon(aes(XMED,
+                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                                fill = QNAME, col = QNAME,
+                                group = QNAME
   ), alpha = 0.1, col = NA) +
-  geom_line(data = TESTA, aes(XMED,
-                              y = `DV50%CI`,
-                              col = DVQNAME, group = DVQNAME
+  geom_line(aes(XMED,
+                              y = `50%CI`,
+                              col = QNAME, group = QNAME
   )) +
-  geom_line(data = TESTA, aes(
-    x = XMED, y = DVOBS, group = DVQNAME,
-    linetype = DVQNAME
+  geom_line(aes(
+    x = XMED, y = OBS, group = QNAME,
+    linetype = QNAME
   ), size = 2) +
-  geom_hline(yintercept = 50, col = "red") +
-  geom_rug(data = TESTA, aes(x = XMIN), sides = "t") +
-  geom_rug(data = TESTA, aes(x = XMAX), sides = "t") +
+  #geom_hline(yintercept = 50, col = "red") +
+  geom_hline(data = TESTA$BINS, aes(yintercept = LLOQ)) +
+  geom_rug(data = TESTA$BINS, aes(x = XMIN), sides = "t") +
+  geom_rug(data = TESTA$BINS, aes(x = XMAX), sides = "t") +
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
     breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
@@ -202,29 +204,29 @@ AAA <- ggplot(TESTA) +
   theme(
     legend.position = "top", legend.key.width = grid::unit(2, "cm"),
     axis.text.x = element_text(angle = 30), axis.title.x = element_blank()
-  ) +
-  geom_hline(yintercept = 50)
+  )
+  
 egg::ggarrange(AAA, A)
 #
 
 
-BBB <- ggplot(TESTA[TESTA$DVQNAME == TESTA$DVQNAME[1], ]) +
+BBB <- ggplot(TESTA$PCTBLQ %>% mutate(QNAME="Percent BLQ")) +
   facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
-  geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (`PCTBLQ2.5%CI`), ymax = (`PCTBLQ97.5%CI`),
-                                fill = PCTBLQQNAME, col = PCTBLQQNAME,
-                                group = PCTBLQQNAME
+  geom_ribbon(aes(XMED,
+                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                                fill = QNAME, col = QNAME,
+                                group = QNAME
   ), alpha = 0.1, col = NA) +
-  geom_line(data = TESTA, aes(XMED,
-                              y = `PCTBLQ50%CI`,
-                              col = PCTBLQQNAME, group = PCTBLQQNAME
+  geom_line(aes(XMED,
+                              y = `50%CI`,
+                              col = QNAME, group = QNAME
   )) +
-  geom_line(data = TESTA, aes(
-    x = XMED, y = PCTBLQOBS, group = PCTBLQQNAME,
-    linetype = PCTBLQQNAME
+  geom_line(aes(
+    x = XMED, y = OBS, group = QNAME,
+    linetype = QNAME
   ), size = 2) +
-  geom_rug(data = TESTA, aes(x = XMIN), inherit.aes = FALSE, sides = "t") +
-  geom_rug(data = TESTA, aes(x = XMAX), inherit.aes = FALSE, sides = "t") +
+  geom_rug(data = TESTA$BINS, aes(x = XMIN), inherit.aes = FALSE, sides = "t") +
+  geom_rug(data = TESTA$BINS, aes(x = XMAX), inherit.aes = FALSE, sides = "t") +
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
     breaks = c("5%PI", "50%PI", "95%PI", "PercentBLQ"),
@@ -256,9 +258,7 @@ BBB <- ggplot(TESTA[TESTA$DVQNAME == TESTA$DVQNAME[1], ]) +
 B <- vpc_cens(sim = simple_data$sim, stratify = c("ISM"), obs = simple_data$obs, lloq = 50)
 
 egg::ggarrange(BBB, B)
-egg::ggarrange(AAA+
-                 geom_hline(yintercept=c(25,100)),
-               BBB)
+egg::ggarrange(AAA, BBB)
 
 
 ### now examples with diferences and things that vpc cannot handle
@@ -271,7 +271,7 @@ TESTA0 <- compute.PI.bins(
   nbins = NULL, LLOQ = LLOQ
 )
 
-TESTA <- compute.PI(
+TESTA <- computePI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
   NBINS = NULL, LLOQ = LLOQ
 )
@@ -312,7 +312,7 @@ TESTA0 <- compute.PI.bins(
   nbins = NULL, LLOQ = LLOQ, stratify1 = ISM, stratify2 = ISF
 )
 
-TESTA <- compute.PI(
+TESTA <- computePI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM+ISF,
   NBINS = NULL, LLOQ = LLOQ
 )
@@ -325,21 +325,22 @@ A <- vpc(
 ) # does not work
 
 
-ggplot(TESTA) +
+ggplot(TESTA$PI) +
   facet_wrap(ISF ~ ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
-  geom_ribbon(data = TESTA, aes(XMED,
-                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
-                                fill = DVQNAME, col = DVQNAME,
-                                group = DVQNAME
+  geom_ribbon(aes(XMED,
+                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                                fill = QNAME, col = QNAME,
+                                group = QNAME
   ), alpha = 0.1, col = NA) +
-  geom_line(data = TESTA, aes(XMED,
-                              y = `DV50%CI`,
-                              col = DVQNAME, group = DVQNAME
+  geom_line(aes(XMED,
+                              y = `50%CI`,
+                              col = QNAME, group = QNAME
   )) +
-  geom_line(data = TESTA, aes(
-    x = XMED, y = DVOBS, group = DVQNAME,
-    linetype = DVQNAME
-  ), inherit.aes = FALSE, size = 2)
+  geom_line(aes(
+    x = XMED, y = OBS, group = QNAME,
+    linetype = QNAME
+  ), inherit.aes = FALSE, size = 2)+
+  geom_hline(data = TESTA$BINS, aes(yintercept = LLOQ))
 
 
 # Binning strategy global (vpc) or by group (computePI)
@@ -358,9 +359,9 @@ vpc::bin_data
 #n global bins
 B <- computePI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=F)
 pvpc <- function(data) {
-  ggplot(data, aes(x=XMID))+
-  geom_ribbon(aes(ymin=`DV2.5%CI`, ymax=`DV97.5%CI`, fill=DVQNAME))+
-  geom_line(aes(y=DVOBS, linetype=DVQNAME))+
+  ggplot(data$PI, aes(x=XMID))+
+  geom_ribbon(aes(ymin=`2.5%CI`, ymax=`97.5%CI`, fill=QNAME))+
+  geom_line(aes(y=OBS, linetype=QNAME))+
   geom_rug(aes(x=XLEFT), sides="bt")+
   geom_rug(aes(x=XRIGHT), sides="bt")+
   facet_wrap(~ISM)
@@ -402,7 +403,7 @@ PKPDVPC0 <- compute.PI.bins(
   nbins = NULL, LLOQ = NULL, stratify1 = DVTYPE, stratify2 = NULL, predcorrection = FALSE
 )
 
-PKPDVPC <- compute.PI(
+PKPDVPC <- computePI(
   obsdata = obsdata, simdata = simdata, TIME = TIME, REPL = REPL,
   NBINS = NULL, LLOQ = NULL, stratify = ~DVTYPE, predcorrection = FALSE
 )
@@ -418,20 +419,20 @@ AAA <- vpc(
 AAA <- AAA + facet_wrap(~DVTYPE, scales = "free_y")
 
 
-BBB <- ggplot(PKPDVPC) +
+BBB <- ggplot(PKPDVPC$PI) +
   facet_wrap(~DVTYPE, labeller = label_wrap_gen(multi_line = FALSE), ncol = 3, scales = "free_y") +
-  geom_ribbon(data = PKPDVPC, aes(XMID,
-                                  ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
-                                  fill = DVQNAME, col = DVQNAME,
-                                  group = DVQNAME
+  geom_ribbon(aes(XMID,
+                                  ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                                  fill = QNAME, col = QNAME,
+                                  group = QNAME
   ), alpha = 0.1, col = NA) +
-  geom_line(data = PKPDVPC, aes(XMID,
-                                y = `DV50%CI`,
-                                col = DVQNAME, group = DVQNAME
+  geom_line(aes(XMID,
+                                y = `50%CI`,
+                                col = QNAME, group = QNAME
   )) +
-  geom_line(data = PKPDVPC, aes(
-    x = XMID, y = DVOBS, group = DVQNAME,
-    linetype = DVQNAME
+  geom_line(aes(
+    x = XMID, y = OBS, group = QNAME,
+    linetype = QNAME
   ), inherit.aes = FALSE, size = 2)
 egg::ggarrange(AAA, BBB)
 
@@ -440,16 +441,16 @@ egg::ggarrange(AAA, BBB)
 
 # report ready VPC PLOT
 
-ggplot(PKPDVPC) +
+ggplot(PKPDVPC$PI) +
   geom_ribbon(aes(XMID,
-                  ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
-                  fill = DVQNAME, col = DVQNAME,
-                  group = DVQNAME
+                  ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                  fill = QNAME, col = QNAME,
+                  group = QNAME
   ), alpha = 0.1, col = NA) +
   facet_wrap(~DVTYPE, labeller = label_wrap_gen(multi_line = FALSE), ncol = 3, scales = "free_y") +
-  geom_line(aes(XMID, y = `DV50%CI`, col = DVQNAME, group = DVQNAME)) +
+  geom_line(aes(XMID, y = `50%CI`, col = QNAME, group = QNAME)) +
   geom_line(aes(
-    x = XMID, y = DVOBS, group = DVQNAME,
+    x = XMID, y = OBS, group = QNAME,
     linetype = "Observed"
   ), inherit.aes = FALSE, size = 1.5) +
   scale_linetype_manual(name = "", breaks = c("Observed"), values = c("dashed")) +
