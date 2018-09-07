@@ -1,5 +1,5 @@
-source("R/Debug/computePI.bins.R")
-source("R/Debug/compare_outputs.R")
+source("inst/Debug/computePI.bins.R")
+source("inst/Debug/compare_outputs.R")
 source("R/computePI.R")
 source("R/quantile_cens.R")
 require(ggbeeswarm)
@@ -55,7 +55,7 @@ system.time(
 
 system.time(
   {
-    compute.PI(
+    computePI(
       obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
       NBINS = NULL, LLOQ = LLOQ, predcorrection_islogdv = FALSE, predcorrection = FALSE
     )
@@ -74,7 +74,7 @@ TESTA0 <-
   )
 
 TESTA <- 
-  compute.PI(
+  computePI(
     obsdata = exampleobs, simdata = examplesim, stratify = NULL,
     NBINS = NULL, LLOQ = LLOQ, predcorrection_islogdv = FALSE, predcorrection = FALSE
   )
@@ -356,7 +356,7 @@ vpc::bin_data
 #uses cut(right=F), so I updated computePI to use the same.
 
 #n global bins
-B <- compute.PI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=F)
+B <- computePI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=F)
 pvpc <- function(data) {
   ggplot(data, aes(x=XMID))+
   geom_ribbon(aes(ymin=`DV2.5%CI`, ymax=`DV97.5%CI`, fill=DVQNAME))+
@@ -369,7 +369,7 @@ egg::ggarrange(A, pvpc(B))
 #Same
 
 #nbins per strata
-C <- compute.PI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=T)
+C <- computePI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=T)
 egg::ggarrange(A, pvpc(B), pvpc(C))  
 
 
