@@ -65,7 +65,17 @@ ggplot(VPCDATA$PI) +
     y = RAWOBS,
     group = QNAME,
     linetype = QNAME
-  ), size = 2) +
+  ), size = 1) +
+  geom_hline(data = VPCDATA$BINS,
+             aes(
+               yintercept = LLOQ
+             ), linetype = "dotted", size = 1) +
+  geom_text(data = VPCDATA$BINS %>% distinct(ISM,LLOQ),
+             aes(
+               x = 10,
+               y = LLOQ,
+               label = paste("LLOQ", LLOQ, sep=" = "),
+             ), vjust = -1)+
   scale_colour_manual(
     name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
     breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
@@ -95,6 +105,6 @@ ggplot(VPCDATA$PI) +
     axis.text.x = element_text(angle = 30),
     axis.title.x = element_blank()
   )
-  
+
 
 ```
