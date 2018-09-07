@@ -1,4 +1,3 @@
-require(data.table)
 #' ComputePI
 #'
 #' @param obsdata Obs dataset
@@ -243,18 +242,18 @@ computePI <- function(obsdata = NULL,
   
   if (quo_is_null(LLOQ)) {
     PIobs <- data.table::as.data.table(obsdatabins)[, 
-                                                    .(QNAME = paste0("",100*PI,"%PI"),
+                                                    list(QNAME = paste0("",100*PI,"%PI"),
                                                       RAWOBS = quantile(DVC, probs = PI, na.rm=T)),
                                                     by = c(stratifyvars,"BIN")]    
     
   } else {
     PIobs <- data.table::as.data.table(obsdatabins %>% 
                                          mutate(LLOQ = !!LLOQ))[, #Don't know how to use !! inside data.table  
-                                                                .(QNAME=paste0("",100*PI,"%PI"),
+                                                                list(QNAME=paste0("",100*PI,"%PI"),
                                                                   RAWOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ, na.rm=T))),
                                                                 by = c(stratifyvars,"BIN")]
     PCTBLQobs <- as.data.table(obsdatabins)[, 
-                                            .(QNAME = "PercentBLQ",
+                                            list(QNAME = "PercentBLQ",
                                               RAWOBS = 100 * mean(LLOQFL)),
                                             by = c(stratifyvars,"BIN")]
   }
@@ -275,12 +274,12 @@ computePI <- function(obsdata = NULL,
   }
   
   PIsim <- as.data.table(simdatabins)[, 
-                                      .(QNAME=paste0("",100*PI,"%PI"),
+                                      list(QNAME=paste0("",100*PI,"%PI"),
                                         SIM=quantile(DVC, probs = PI, na.rm=T)),
                                       by = c(stratifyvars,"BIN",quo_name(REPL))]
   
   PI <- PIsim[, 
-              .(CI=paste0("SIM",100*CI,"%CI"),
+              list(CI=paste0("SIM",100*CI,"%CI"),
                 Q=quantile(SIM, probs = CI, na.rm=T)),
               by = c(stratifyvars,"BIN","QNAME")]
   
@@ -290,12 +289,12 @@ computePI <- function(obsdata = NULL,
   
   if (!quo_is_null(LLOQ)) {
     PCTBLQsim <- as.data.table(simdatabins)[, 
-                                            .(QNAME = "PercentBLQ",
+                                            list(QNAME = "PercentBLQ",
                                               SIM = 100 * mean(LLOQFL)),
                                             by = c(stratifyvars,"BIN",quo_name(REPL))]
     
     PCTBLQ <- PCTBLQsim[, 
-                        .(CI=paste0("SIM",100*CI,"%CI"),
+                        list(CI=paste0("SIM",100*CI,"%CI"),
                           Q=quantile(SIM, probs = CI, na.rm=T)),
                         by = c(stratifyvars,"BIN","QNAME")]
     
