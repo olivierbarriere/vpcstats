@@ -1,9 +1,5 @@
-require(dplyr)
 require(data.table)
-require(rlang)
-require(classInt)
-
-#' Compute PI
+#' ComputePI
 #'
 #' @param obsdata Obs dataset
 #' @param simdata Sim dataset
@@ -32,7 +28,7 @@ require(classInt)
 #' @examples
 
 
-compute.PI <- function(obsdata = NULL,
+computePI <- function(obsdata = NULL,
                        simdata,
                        stratify = NULL,
                        TIME = TIME,
@@ -248,13 +244,13 @@ compute.PI <- function(obsdata = NULL,
   }
   
   if (quo_is_null(LLOQ)) {
-    PIobs <- as.data.table(obsdatabins)[, 
+    PIobs <- data.table::as.data.table(obsdatabins)[, 
                                         .(DVQNAME=paste0("",100*PI,"%PI"),
                                           DVOBS=quantile(DVC, probs = PI, na.rm=T)),
                                         by = c(stratifyvars,"BIN")]    
     
   } else {
-    PIobs <- as.data.table(obsdatabins %>% 
+    PIobs <- data.table::as.data.table(obsdatabins %>% 
                              mutate(LLOQ = !!LLOQ))[, #Don't know how to use !! inside data.table  
                                                     .(DVQNAME=paste0("",100*PI,"%PI"),
                                                       DVOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ, na.rm=T))),

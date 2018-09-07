@@ -5,6 +5,7 @@ source("R/quantile_cens.R")
 require(ggbeeswarm)
 require(ggplot2)
 require(vpc)
+require(data.table)
 
 theme_set(theme_bw())
 
