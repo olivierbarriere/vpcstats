@@ -88,16 +88,16 @@ A <- vpc(sim = examplesim, obs = exampleobs,
 
 AAA <- ggplot(TESTA$PI) +
   geom_ribbon(aes(XMED,
-                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
-                                fill = QNAME, col = QNAME,
-                                group = QNAME
+                  ymin = (`SIM2.5%CI`), ymax = (`SIM97.5%CI`),
+                  fill = QNAME, col = QNAME,
+                  group = QNAME
   ), alpha = 0.1, col = NA) +
   geom_line(aes(XMED,
-                              y = `50%CI`,
-                              col = QNAME, group = QNAME
+                y = `SIM50%CI`,
+                col = QNAME, group = QNAME
   )) +
   geom_line(aes(
-    x = XMED, y = OBS, group = QNAME,
+    x = XMED, y = RAWOBS, group = QNAME,
     linetype = QNAME
   ), size = 2) +
   geom_hline(yintercept = 50, col = "red") +
@@ -162,16 +162,16 @@ A <- vpc(
 AAA <- ggplot(TESTA$PI) +
   facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(aes(XMED,
-                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
-                                fill = QNAME, col = QNAME,
-                                group = QNAME
+                  ymin = (`SIM2.5%CI`), ymax = (`SIM97.5%CI`),
+                  fill = QNAME, col = QNAME,
+                  group = QNAME
   ), alpha = 0.1, col = NA) +
   geom_line(aes(XMED,
-                              y = `50%CI`,
-                              col = QNAME, group = QNAME
+                y = `SIM50%CI`,
+                col = QNAME, group = QNAME
   )) +
   geom_line(aes(
-    x = XMED, y = OBS, group = QNAME,
+    x = XMED, y = RAWOBS, group = QNAME,
     linetype = QNAME
   ), size = 2) +
   #geom_hline(yintercept = 50, col = "red") +
@@ -205,7 +205,7 @@ AAA <- ggplot(TESTA$PI) +
     legend.position = "top", legend.key.width = grid::unit(2, "cm"),
     axis.text.x = element_text(angle = 30), axis.title.x = element_blank()
   )
-  
+
 egg::ggarrange(AAA, A)
 #
 
@@ -213,16 +213,16 @@ egg::ggarrange(AAA, A)
 BBB <- ggplot(TESTA$PCTBLQ %>% mutate(QNAME="Percent BLQ")) +
   facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(aes(XMED,
-                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
-                                fill = QNAME, col = QNAME,
-                                group = QNAME
+                  ymin = (`SIM2.5%CI`), ymax = (`SIM97.5%CI`),
+                  fill = QNAME, col = QNAME,
+                  group = QNAME
   ), alpha = 0.1, col = NA) +
   geom_line(aes(XMED,
-                              y = `50%CI`,
-                              col = QNAME, group = QNAME
+                y = `SIM50%CI`,
+                col = QNAME, group = QNAME
   )) +
   geom_line(aes(
-    x = XMED, y = OBS, group = QNAME,
+    x = XMED, y = RAWOBS, group = QNAME,
     linetype = QNAME
   ), size = 2) +
   geom_rug(data = TESTA$BINS, aes(x = XMIN), inherit.aes = FALSE, sides = "t") +
@@ -328,16 +328,16 @@ A <- vpc(
 ggplot(TESTA$PI) +
   facet_wrap(ISF ~ ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(aes(XMED,
-                                ymin = (`2.5%CI`), ymax = (`97.5%CI`),
-                                fill = QNAME, col = QNAME,
-                                group = QNAME
+                  ymin = (`SIM2.5%CI`), ymax = (`SIM97.5%CI`),
+                  fill = QNAME, col = QNAME,
+                  group = QNAME
   ), alpha = 0.1, col = NA) +
   geom_line(aes(XMED,
-                              y = `50%CI`,
-                              col = QNAME, group = QNAME
+                y = `SIM50%CI`,
+                col = QNAME, group = QNAME
   )) +
   geom_line(aes(
-    x = XMED, y = OBS, group = QNAME,
+    x = XMED, y = RAWOBS, group = QNAME,
     linetype = QNAME
   ), inherit.aes = FALSE, size = 2)+
   geom_hline(data = TESTA$BINS, aes(yintercept = LLOQ))
@@ -360,11 +360,11 @@ vpc::bin_data
 B <- computePI(obsdata=exampleobs1, simdata = examplesim1, stratify=~ISM, NBINS=n_bins, style="jenks", bin_by_strata=F)
 pvpc <- function(data) {
   ggplot(data$PI, aes(x=XMID))+
-  geom_ribbon(aes(ymin=`2.5%CI`, ymax=`97.5%CI`, fill=QNAME))+
-  geom_line(aes(y=OBS, linetype=QNAME))+
-  geom_rug(aes(x=XLEFT), sides="bt")+
-  geom_rug(aes(x=XRIGHT), sides="bt")+
-  facet_wrap(~ISM)
+    geom_ribbon(aes(ymin=`SIM2.5%CI`, ymax=`SIM97.5%CI`, fill=QNAME))+
+    geom_line(aes(y=RAWOBS, linetype=QNAME))+
+    geom_rug(aes(x=XLEFT), sides="bt")+
+    geom_rug(aes(x=XRIGHT), sides="bt")+
+    facet_wrap(~ISM)
 }
 egg::ggarrange(A, pvpc(B))  
 #Same
@@ -422,16 +422,16 @@ AAA <- AAA + facet_wrap(~DVTYPE, scales = "free_y")
 BBB <- ggplot(PKPDVPC$PI) +
   facet_wrap(~DVTYPE, labeller = label_wrap_gen(multi_line = FALSE), ncol = 3, scales = "free_y") +
   geom_ribbon(aes(XMID,
-                                  ymin = (`2.5%CI`), ymax = (`97.5%CI`),
-                                  fill = QNAME, col = QNAME,
-                                  group = QNAME
+                  ymin = (`SIM2.5%CI`), ymax = (`SIM97.5%CI`),
+                  fill = QNAME, col = QNAME,
+                  group = QNAME
   ), alpha = 0.1, col = NA) +
   geom_line(aes(XMID,
-                                y = `50%CI`,
-                                col = QNAME, group = QNAME
+                y = `SIM50%CI`,
+                col = QNAME, group = QNAME
   )) +
   geom_line(aes(
-    x = XMID, y = OBS, group = QNAME,
+    x = XMID, y = RAWOBS, group = QNAME,
     linetype = QNAME
   ), inherit.aes = FALSE, size = 2)
 egg::ggarrange(AAA, BBB)
@@ -443,14 +443,14 @@ egg::ggarrange(AAA, BBB)
 
 ggplot(PKPDVPC$PI) +
   geom_ribbon(aes(XMID,
-                  ymin = (`2.5%CI`), ymax = (`97.5%CI`),
+                  ymin = (`SIM2.5%CI`), ymax = (`SIM97.5%CI`),
                   fill = QNAME, col = QNAME,
                   group = QNAME
   ), alpha = 0.1, col = NA) +
   facet_wrap(~DVTYPE, labeller = label_wrap_gen(multi_line = FALSE), ncol = 3, scales = "free_y") +
-  geom_line(aes(XMID, y = `50%CI`, col = QNAME, group = QNAME)) +
+  geom_line(aes(XMID, y = `SIM50%CI`, col = QNAME, group = QNAME)) +
   geom_line(aes(
-    x = XMID, y = OBS, group = QNAME,
+    x = XMID, y = RAWOBS, group = QNAME,
     linetype = "Observed"
   ), inherit.aes = FALSE, size = 1.5) +
   scale_linetype_manual(name = "", breaks = c("Observed"), values = c("dashed")) +
