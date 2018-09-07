@@ -10,7 +10,7 @@ computePI(obsdata = NULL, simdata, stratify = NULL, TIME = TIME,
   cut_right = FALSE, filterblq = FALSE, predcorrection = FALSE,
   predcorrection_islogdv = FALSE, predcorrection_lowerbnd = 0,
   PI = c(0.05, 0.5, 0.95), CI = c(0.025, 0.5, 0.975),
-  bootstrapobsdata = FALSE, sort_output = TRUE)
+  bootstrapobsdata = FALSE)
 }
 \arguments{
 \item{obsdata}{Obs dataset}
@@ -50,8 +50,6 @@ computePI(obsdata = NULL, simdata, stratify = NULL, TIME = TIME,
 \item{CI}{Confidence Intervals around the Prediction Intervals : vector of any number of value}
 
 \item{bootstrapobsdata}{Not used yet}
-
-\item{sort_output}{Output sorted by strata, bin, and quantile of dv}
 }
 \description{
 ComputePI

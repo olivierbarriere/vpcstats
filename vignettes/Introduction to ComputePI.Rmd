@@ -1,10 +1,10 @@
 ---
-title: "Introduction to ComputePI"
+title: "Introduction to computePI"
 author: "Samer Mouksassi"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Vignette Title}
+  %\VignetteIndexEntry{Introduction to computePI}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -16,50 +16,134 @@ knitr::opts_chunk$set(
 )
 ```
 
-Vignettes are long form documentation commonly included in packages. Because they are part of the distribution of the package, they need to be as compact as possible. The `html_vignette` output type provides a custom style sheet (and tweaks some options) to ensure that the resulting html is as small as possible. The `html_vignette` format:
+This package enable you to quickly compute prediciton intervals on Observed and Simulated data to get the ouput needed to produce Visual Predictive Checks plots. It supports per strata binning, per strata lower limit of quantification and uses `data.table`for faster computations.
 
-- Never uses retina figures
-- Has a smaller default figure size
-- Uses a custom CSS stylesheet instead of the default Twitter Bootstrap style
-
-## Vignette Info
-
-Note the various macros within the `vignette` section of the metadata block above. These are required in order to instruct R how to build the vignette. Note that you should change the `title` field and the `\VignetteIndexEntry` to match the title of your vignette.
-
-## Styles
-
-The `html_vignette` template includes a basic CSS theme. To override this theme you can specify your own CSS in the document metadata as follows:
-
-    output: 
-      rmarkdown::html_vignette:
-        css: mystyles.css
+To get started:
+```
+devtools::install_github("smouksassi/computePI")
+library(computePI)
+```
 
 ## Figures
 
 The figure sizes have been customised so that you can easily put two images side-by-side. 
 
-```{r, fig.show='hold'}
-plot(1:10)
-plot(10:1)
+```{r, fig.show='hold', fig.height= 800}
+require(ggplot2)
+require(dplyr)
+require(rlang)
+require(vpc)
+require(data.table)
+require(computePI)
+
+theme_set(theme_bw())
+exampleobs <- simple_data$obs
+exampleobs <- exampleobs[exampleobs$MDV == 0, ]
+examplesim <- simple_data$sim
+exampleobs$PRED <- examplesim[1:nrow(exampleobs), "PRED"]
+exampleobs$REP <- 0
+exampleobs$LLOQ <- 50
+examplesim <- examplesim[examplesim$MDV == 0, ]#
+examplesim$LLOQ <- 50
+exampleobs$LLOQ <- ifelse(exampleobs$ISM == 0, 100, 25)
+examplesim$LLOQ <- ifelse(examplesim$ISM == 0, 100, 25)
+
+VPCDATA<- computePI(
+  obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
+  NBINS = NULL, LLOQ = LLOQ)
+
+AAA <- ggplot(VPCDATA) +
+  facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
+  geom_ribbon(aes(XMED,
+                                ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
+                                fill = DVQNAME, col = DVQNAME,
+                                group = DVQNAME
+  ), alpha = 0.1, col = NA) +
+  geom_line(data = VPCDATA, aes(XMED,
+                              y = `DV50%CI`,
+                              col = DVQNAME, group = DVQNAME
+  )) +
+  geom_line(data = VPCDATA, aes(
+    x = XMED, y = DVOBS, group = DVQNAME,
+    linetype = DVQNAME
+  ), size = 2) +
+  geom_hline(yintercept = c(25,100), col = "green") +
+  geom_rug(data = VPCDATA, aes(x = XMIN), sides = "t") +
+  geom_rug(data = VPCDATA, aes(x = XMAX), sides = "t") +
+  scale_colour_manual(
+    name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
+    breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
+    values = c("red", "blue", "red", "black"),
+    labels = c("5%", "50%", "95%", "Percent BLQ")
+  ) +
+  scale_fill_manual(
+    name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
+    breaks = c("5%PI", "50%PI", "95%PI", "Percent BLQ"),
+    values = c("red", "blue", "red", "black"),
+    labels = c("5%", "50%", "95%", "Percent BLQ")
+  ) +
+  scale_linetype_manual(
+    name = "Observed Percentiles\n(black lines)",
+    breaks = c("5%PI", "50%PI", "95%PI"),
+    values = c("dotted", "solid", "dashed"),
+    labels = c("5%", "50%", "95%")
+  ) +
+  guides(
+    fill = guide_legend(order = 2),
+    colour = guide_legend(order = 2),
+    linetype = guide_legend(order = 1)
+  ) +
+  theme(
+    legend.position = "top", legend.key.width = grid::unit(1, "cm"),
+    axis.text.x = element_text(angle = 30), axis.title.x = element_blank()
+  ) 
+
+BBB <- ggplot(VPCDATA[VPCDATA$DVQNAME == VPCDATA$DVQNAME[1], ]) +
+  facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
+  geom_ribbon(data = VPCDATA, aes(XMED,
+                                ymin = (`PCTBLQ2.5%CI`), ymax = (`PCTBLQ97.5%CI`),
+                                fill = PCTBLQQNAME, col = PCTBLQQNAME,
+                                group = PCTBLQQNAME
+  ), alpha = 0.1, col = NA) +
+  geom_line(data = VPCDATA, aes(XMED,
+                              y = `PCTBLQ50%CI`,
+                              col = PCTBLQQNAME, group = PCTBLQQNAME
+  )) +
+  geom_line(data = VPCDATA, aes(
+    x = XMED, y = PCTBLQOBS, group = PCTBLQQNAME,
+    linetype = PCTBLQQNAME
+  ), size = 2) +
+  geom_rug(data = VPCDATA, aes(x = XMIN), inherit.aes = FALSE, sides = "t") +
+  geom_rug(data = VPCDATA, aes(x = XMAX), inherit.aes = FALSE, sides = "t") +
+  scale_colour_manual(
+    name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
+    breaks = c("5%PI", "50%PI", "95%PI", "PercentBLQ"),
+    values = c("red", "blue", "red", "black"),
+    labels = c("5%", "50%", "95%", "Percent BLQ")
+  ) +
+  scale_fill_manual(
+    name = "Simulated Percentiles\nMedian (lines) 95% CI (areas)",
+    breaks = c("5%PI", "50%PI", "95%PI", "PercentBLQ"),
+    values = c("red", "blue", "red", "black"),
+    labels = c("5%", "50%", "95%", "Percent BLQ")
+  ) +
+  scale_linetype_manual(
+    name = "Observed Percentiles\n(black lines)",
+    breaks = c("5%PI", "50%PI", "95%PI"),
+    values = c("dotted", "solid", "dashed"),
+    labels = c("5%", "50%", "95%")
+  ) +
+  guides(
+    fill = guide_legend(order = 2),
+    colour = guide_legend(order = 2),
+    linetype = guide_legend(order = 1)
+  ) +
+  theme(
+    legend.position = "bottom", legend.key.width = grid::unit(2, "cm"),
+    axis.text.x = element_text(angle = 30), axis.title.x = element_blank()
+  )
+
+egg::ggarrange(AAA, BBB)
+
 ```
 
-You can enable figure captions by `fig_caption: yes` in YAML:
-
-    output:
-      rmarkdown::html_vignette:
-        fig_caption: yes
-
-Then you can use the chunk option `fig.cap = "Your figure caption."` in **knitr**.
-
-## More Examples
-
-You can write math expressions, e.g. $Y = X\beta + \epsilon$, footnotes^[A footnote here.], and tables, e.g. using `knitr::kable()`.
-
-```{r, echo=FALSE, results='asis'}
-knitr::kable(head(mtcars, 10))
-```
-
-Also a quote using `>`:
-
-> "He who gives up [code] safety for [code] speed deserves neither."
-([via](https://twitter.com/hadleywickham/status/504368538874703872))
