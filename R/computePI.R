@@ -9,9 +9,10 @@
 #' @param LLOQ LLOQ column: a name, an expression, or a fixed value
 #' @param NBINS NBINS column: a name, an expression, or a fixed value
 #' @param bin_by_strata Flag to indicate if the binning is by strata (default) or global
-#' @param style Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)
+#' @param bin_style Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)
 #' @param breaks User defined breaks: either a vector or a wide data.frame with a column "breaks", and other colums corresponding to the stratify variables
 #' @param cut_right Flag to indicate if the intervals should be closed on the right (and open on the left) or vice versa. Default to False, unlike the cut function.
+#' @param quantile_type Quantile algorithm: an integer between 4 and 9 selecting one of the nine quantile algorithms
 #' @param filterblq Flag to remove the BLQ values just before computing the quantiles, but after "merging" with rep(, sim) 
 #' @param predcorrection Flag to indicate if the VPC has to be pred corrected or not
 #' @param predcorrection_islogdv Flag to indicate if the data was log transformed
@@ -35,9 +36,10 @@ computePI <- function(obsdata = NULL,
                       LLOQ = NULL,
                       NBINS = NULL,
                       bin_by_strata = TRUE,
-                      style = "ntile",
+                      bin_style = "ntile",
                       breaks = NULL,
                       cut_right = FALSE,
+                      quantile_type = 7,
                       filterblq = FALSE,
                       predcorrection = FALSE,
                       predcorrection_islogdv = FALSE,
@@ -136,20 +138,20 @@ computePI <- function(obsdata = NULL,
       }
       
     } else { 
-      if (!is.null(style) && style == "ntile") {
+      if (!is.null(bin_style) && bin_style == "ntile") {
         obsdatabins <- obsdatabins %>%
           mutate(BIN = ntile(!!TIME, !!NBINS))
-      } else if (!is.null(style) && style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
+      } else if (!is.null(bin_style) && bin_style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
         obsdatabins <- obsdatabins %>%
-          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=style)$brks, right=cut_right, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=bin_style)$brks, right=cut_right, include.lowest=T)))
         
         breaks <- obsdatabins %>%
           mutate(TIME = !!TIME,
                  NBINS = !!NBINS) %>%
           select_at(c(stratifyvars, "TIME","NBINS")) %>%
-          do(data.frame(breaks = classIntervals(.$TIME, n=unique(.$NBINS), style=style)$brks))
+          do(data.frame(breaks = classIntervals(.$TIME, n=unique(.$NBINS), style=bin_style)$brks))
       } else {
-        stop("Error: Unknown style")
+        stop("Error: Unknown binning style")
       }
     }
   }
@@ -243,14 +245,14 @@ computePI <- function(obsdata = NULL,
   if (quo_is_null(LLOQ)) {
     PIobs <- data.table::as.data.table(obsdatabins)[, 
                                                     list(QNAME = paste0("",100*PI,"%PI"),
-                                                      RAWOBS = quantile(DVC, probs = PI, na.rm=T)),
+                                                      RAWOBS = quantile(DVC, probs = PI, type = quantile_type, na.rm = T)),
                                                     by = c(stratifyvars,"BIN")]    
     
   } else {
     PIobs <- data.table::as.data.table(obsdatabins %>% 
                                          mutate(LLOQ = !!LLOQ))[, #Don't know how to use !! inside data.table  
                                                                 list(QNAME=paste0("",100*PI,"%PI"),
-                                                                  RAWOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ, na.rm=T))),
+                                                                  RAWOBS=as.numeric(quantile_cens(DVC, p = PI, limit = LLOQ, type = quantile_type, na.rm = T))),
                                                                 by = c(stratifyvars,"BIN")]
     PCTBLQobs <- as.data.table(obsdatabins)[, 
                                             list(QNAME = "PercentBLQ",
@@ -275,12 +277,12 @@ computePI <- function(obsdata = NULL,
   
   PIsim <- as.data.table(simdatabins)[, 
                                       list(QNAME=paste0("",100*PI,"%PI"),
-                                        SIM=quantile(DVC, probs = PI, na.rm=T)),
+                                        SIM=quantile(DVC, probs = PI, type = quantile_type, na.rm = T)),
                                       by = c(stratifyvars,"BIN",quo_name(REPL))]
   
   PI <- PIsim[, 
               list(CI=paste0("SIM",100*CI,"%CI"),
-                Q=quantile(SIM, probs = CI, na.rm=T)),
+                Q=quantile(SIM, probs = CI, type = quantile_type, na.rm = T)),
               by = c(stratifyvars,"BIN","QNAME")]
   
   PI <- dcast(PI, as.formula(paste0(paste(c(stratifyvars, "BIN", "QNAME"), collapse="+"), "~CI")), value.var = "Q")
@@ -295,7 +297,7 @@ computePI <- function(obsdata = NULL,
     
     PCTBLQ <- PCTBLQsim[, 
                         list(CI=paste0("SIM",100*CI,"%CI"),
-                          Q=quantile(SIM, probs = CI, na.rm=T)),
+                          Q=quantile(SIM, probs = CI, type = quantile_type, na.rm = T)),
                         by = c(stratifyvars,"BIN","QNAME")]
     
     PCTBLQ <- dcast(PCTBLQ, as.formula(paste0(paste(c(stratifyvars, "BIN","QNAME"), collapse="+"), "~CI")), value.var = "Q")
