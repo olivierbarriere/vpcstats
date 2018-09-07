@@ -13,13 +13,13 @@ devtools::install_github("smouksassi/ComputePI")
 
 ### Usage
 ```
-require(computePI)
-require(rlang)
 require(vpc)
-require(magritr)
+require(magrittr)
+require(rlang)
 require(dplyr)
 require(ggplot2)
 require(data.table)
+require(computePI)
 
 exampleobs <- simple_data$obs
 exampleobs <- exampleobs[exampleobs$MDV == 0, ]
@@ -33,14 +33,20 @@ VPCDATA<- computePI(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
   NBINS = NULL, LLOQ = LLOQ)
 
+```
+![Example](./inst/img/snapshot1.png)
+
+Plot Code:
+
+```
 
 ggplot(VPCDATA$PI) +
   facet_grid( ~ ISM) +
   geom_ribbon(
     aes(
       XMED,
-      ymin = (`2.5%CI`),
-      ymax = (`97.5%CI`),
+      ymin = (`SIM2.5%CI`),
+      ymax = (`SIM97.5%CI`),
       fill = QNAME,
       col = QNAME,
       group = QNAME
@@ -50,13 +56,13 @@ ggplot(VPCDATA$PI) +
   ) +
   geom_line(aes(
     XMED,
-    y = `50%CI`,
+    y = `SIM50%CI`,
     col = QNAME,
     group = QNAME
   )) +
   geom_line(aes(
     x = XMED,
-    y = OBS,
+    y = RAWOBS,
     group = QNAME,
     linetype = QNAME
   ), size = 2) +
@@ -90,4 +96,5 @@ ggplot(VPCDATA$PI) +
     axis.title.x = element_blank()
   )
   
+
 ```
