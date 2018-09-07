@@ -6,11 +6,11 @@
 \usage{
 computePI(obsdata = NULL, simdata, stratify = NULL, TIME = TIME,
   DV = DV, REPL = REP, LLOQ = NULL, NBINS = NULL,
-  bin_by_strata = TRUE, style = "ntile", breaks = NULL,
-  cut_right = FALSE, filterblq = FALSE, predcorrection = FALSE,
-  predcorrection_islogdv = FALSE, predcorrection_lowerbnd = 0,
-  PI = c(0.05, 0.5, 0.95), CI = c(0.025, 0.5, 0.975),
-  bootstrapobsdata = FALSE)
+  bin_by_strata = TRUE, bin_style = "ntile", breaks = NULL,
+  cut_right = FALSE, quantile_type = 7, filterblq = FALSE,
+  predcorrection = FALSE, predcorrection_islogdv = FALSE,
+  predcorrection_lowerbnd = 0, PI = c(0.05, 0.5, 0.95), CI = c(0.025,
+  0.5, 0.975), bootstrapobsdata = FALSE)
 }
 \arguments{
 \item{obsdata}{Obs dataset}
@@ -31,11 +31,13 @@ computePI(obsdata = NULL, simdata, stratify = NULL, TIME = TIME,
 
 \item{bin_by_strata}{Flag to indicate if the binning is by strata (default) or global}
 
-\item{style}{Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)}
+\item{bin_style}{Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)}
 
 \item{breaks}{User defined breaks: either a vector or a wide data.frame with a column "breaks", and other colums corresponding to the stratify variables}
 
 \item{cut_right}{Flag to indicate if the intervals should be closed on the right (and open on the left) or vice versa. Default to False, unlike the cut function.}
+
+\item{quantile_type}{Quantile algorithm: an integer between 4 and 9 selecting one of the nine quantile algorithms}
 
 \item{filterblq}{Flag to remove the BLQ values just before computing the quantiles, but after "merging" with rep(, sim)}
 
