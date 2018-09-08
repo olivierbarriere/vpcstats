@@ -26,7 +26,7 @@ library(computePI)
 
 ## Figures
 
-The figure sizes have been customised so that you can easily put two images side-by-side. 
+
 
 ```{r, fig.show='hold', fig.height= 800}
 require(ggplot2)
