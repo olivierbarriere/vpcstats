@@ -22,7 +22,9 @@ Imports:
     classInt
 Suggests:
     knitr,
-    rmarkdown
+    rmarkdown,
+    ggplot2,
+    egg
 License: MIT + file LICENSE
 SystemRequirements: pandoc with https support
 Encoding: UTF-8

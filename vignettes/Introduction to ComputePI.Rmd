@@ -16,7 +16,7 @@ knitr::opts_chunk$set(
 )
 ```
 
-This package enable you to quickly compute prediciton intervals on Observed and Simulated data to get the ouput needed to produce Visual Predictive Checks plots. It supports per strata binning, per strata lower limit of quantification and uses `data.table`for faster computations.
+This package supports easy and fast computation of prediciton intervals on Observed and Simulated data to get the ouput needed to produce Visual Predictive Checks plots. It supports per strata binning, per strata lower limit of quantification and uses `data.table`for faster computations.
 
 To get started:
 ```
@@ -29,41 +29,29 @@ library(computePI)
 
 
 ```{r, fig.show='hold', fig.height= 800}
-require(ggplot2)
-require(dplyr)
-require(rlang)
 require(vpc)
+require(rlang)
+require(dplyr)
+require(ggplot2)
 require(data.table)
 require(computePI)
 
-theme_set(theme_bw())
-exampleobs <- simple_data$obs
-exampleobs <- exampleobs[exampleobs$MDV == 0, ]
-examplesim <- simple_data$sim
-exampleobs$PRED <- examplesim[1:nrow(exampleobs), "PRED"]
-exampleobs$REP <- 0
-exampleobs$LLOQ <- 50
-examplesim <- examplesim[examplesim$MDV == 0, ]#
-examplesim$LLOQ <- 50
-exampleobs$LLOQ <- ifelse(exampleobs$ISM == 0, 100, 25)
-examplesim$LLOQ <- ifelse(examplesim$ISM == 0, 100, 25)
-
 VPCDATA<- computePI(
-  obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
-  NBINS = NULL, LLOQ = LLOQ)
+  obsdata = obsdata, simdata = simdata, stratify = ~DVTYPE,REP = REPL,
+  NBINS = NULL, LLOQ = NULL)
 
-AAA <- ggplot(VPCDATA) +
-  facet_wrap(~ISM, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
+AAA <- ggplot(VPCDATA$PI) +
+  facet_wrap(~DVTYPE, scales = "free_x", labeller = label_wrap_gen(multi_line = FALSE), ncol = 2) +
   geom_ribbon(aes(XMED,
                                 ymin = (`DV2.5%CI`), ymax = (`DV97.5%CI`),
                                 fill = DVQNAME, col = DVQNAME,
                                 group = DVQNAME
   ), alpha = 0.1, col = NA) +
-  geom_line(data = VPCDATA, aes(XMED,
+  geom_line(data = VPCDATA$PI, aes(XMED,
                               y = `DV50%CI`,
                               col = DVQNAME, group = DVQNAME
   )) +
-  geom_line(data = VPCDATA, aes(
+  geom_line(data = VPCDATA$PI, aes(
     x = XMED, y = DVOBS, group = DVQNAME,
     linetype = DVQNAME
   ), size = 2) +

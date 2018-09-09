@@ -4,7 +4,7 @@
 \name{obsdata}
 \alias{obsdata}
 \title{observed Pharmacometrics PK/PD Data}
-\format{A data frame with 600 rows and 10 variables
+\format{A data frame with 7154 rows and 4 variables
 \describe{
   \item{ID}{Subject Identifier, an integer from 57 to 186}
   \item{Time}{Time of sample measurement, in hours}
@@ -19,6 +19,6 @@ obsdata
 }
 \description{
 A dataset containing concentration-time data with the
-given dose and some subject characteristics to help in the app exploration.
+type of dependent variable.
 }
 \keyword{datasets}
