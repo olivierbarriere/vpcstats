@@ -2,3 +2,7 @@
 
 export(computePI)
 export(quantile_cens)
+import(data.table, except = c(last,between,first))
+import(dplyr, except = c(last,between,first))
+importFrom("rlang", ".data")
+importFrom("stats", "as.formula", "median", "quantile")

@@ -20,12 +20,14 @@
 #' @param PI Prediction Intervals: vector of any number of  values
 #' @param CI Confidence Intervals around the Prediction Intervals : vector of any number of value
 #' @param bootstrapobsdata Not used yet
-#'
+#' 
+#' @rawNamespace importFrom("stats", "as.formula", "median", "quantile")
+#' @rawNamespace importFrom("rlang", ".data")
+#' @rawNamespace import(dplyr, except = c(last,between,first))
+#' @rawNamespace import(data.table, except = c(last,between,first))
 #' @return
 #' @export
-#'
 #' @examples
-
 
 computePI <- function(obsdata = NULL,
                       simdata,
@@ -47,16 +49,18 @@ computePI <- function(obsdata = NULL,
                       PI = c(0.05, 0.5, 0.95),
                       CI = c(0.025, 0.5, 0.975),
                       bootstrapobsdata = FALSE) {
-  
-  NBINS <- enquo(NBINS)
-  if (quo_is_null(NBINS)) {
+REP = ID = BIN = LLOQFL = PRED = MEDPRED = DVC = SIM = NOBS = NULL
+XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
+
+  NBINS <- rlang::enquo(NBINS)
+  if ( rlang::quo_is_null(NBINS)) {
     message("No binning done")
   }
-  TIME <- enquo(TIME)
-  DV <- enquo(DV)
-  REPL <- enquo(REPL)
-  LLOQ <- enquo(LLOQ)
-  if (quo_is_null(LLOQ)) {
+  TIME <-  rlang::enquo(TIME)
+  DV <-  rlang::enquo(DV)
+  REPL <-  rlang::enquo(REPL)
+  LLOQ <-  rlang::enquo(LLOQ)
+  if ( rlang::quo_is_null(LLOQ)) {
     message("LLOQ is not defined")
   }
   if (filterblq) {
@@ -72,8 +76,8 @@ computePI <- function(obsdata = NULL,
     obsdatabins <- obsdata
   } else {
     obsdatabins <-  simdatabins %>%
-      filter(!!REPL==min(!!REPL)) %>%
-      mutate(!!quo_name(DV) := NA)
+      dplyr::filter(!!REPL==min(!!REPL)) %>%
+      dplyr::mutate(!!rlang::quo_name(DV) := NA)
   }
   
   NREP <- nrow(simdatabins) / nrow(obsdatabins)
@@ -100,7 +104,7 @@ computePI <- function(obsdata = NULL,
   
   stratifyvars <- all.vars(stratify)
   
-  if (!quo_is_null(LLOQ)) {
+  if (!rlang::quo_is_null(LLOQ)) {
     obsdatabins <- obsdatabins %>%
       mutate(LLOQFL = ifelse(!!DV < !!LLOQ, 1, 0))
     
@@ -115,7 +119,7 @@ computePI <- function(obsdata = NULL,
   simdatabins <- simdatabins %>%
     group_by_at(stratifyvars)
   
-  if (quo_is_null(NBINS) & is.null(breaks)) {
+  if (rlang::quo_is_null(NBINS) & is.null(breaks)) {
     obsdatabins <- obsdatabins %>%
       mutate(BIN = !!TIME)
   } else {
@@ -133,7 +137,7 @@ computePI <- function(obsdata = NULL,
         }
         
         obsdatabins <- obsdatabins %>% 
-          left_join(obsdatabins %>% do(cutbreaks(., breaks)), #join to preserver original order
+          left_join(obsdatabins %>% do(cutbreaks(.data, breaks)), #join to preserver original order
                     by=names(obsdatabins)) 
       }
       
@@ -143,13 +147,13 @@ computePI <- function(obsdata = NULL,
           mutate(BIN = ntile(!!TIME, !!NBINS))
       } else if (!is.null(bin_style) && bin_style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
         obsdatabins <- obsdatabins %>%
-          mutate(BIN = as.numeric(cut(!!TIME, classIntervals(!!TIME, n=!!NBINS, style=bin_style)$brks, right=cut_right, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, classInt::classIntervals(!!TIME, n=!!NBINS, style=bin_style)$brks, right=cut_right, include.lowest=T)))
         
         breaks <- obsdatabins %>%
           mutate(TIME = !!TIME,
                  NBINS = !!NBINS) %>%
           select_at(c(stratifyvars, "TIME","NBINS")) %>%
-          do(data.frame(breaks = classIntervals(.$TIME, n=unique(.$NBINS), style=bin_style)$brks))
+          do(data.frame(breaks = classInt::classIntervals(.data$TIME, n=unique(.data$NBINS), style=bin_style)$brks))
       } else {
         stop("Error: Unknown binning style")
       }
@@ -168,8 +172,10 @@ computePI <- function(obsdata = NULL,
   if (is.null(breaks)) {
     breaks <- obsdatabins %>%
       group_by_at(stratifyvars) %>%
-      distinct(BIN, XMIN, XMAX) %>%
-      arrange_at(c(group_vars(.),"BIN")) %>%
+      distinct(BIN, XMIN, XMAX)
+      groupvars<- group_vars(breaks)
+      breaks <- breaks %>%
+      arrange_at(c(groupvars,"BIN")) %>%
       #mutate(XLEFT = (XMIN+c(-Inf,XMAX[-length(XMAX)]))/2, #Infinite left and right boundaries
       #       XRIGHT = (XMAX+c(XMIN[-1],Inf))/2) %>%
       mutate(XLEFT = (XMIN+c(XMIN[1],XMAX[-length(XMAX)]))/2, #Min and max left and right boundaries
@@ -184,7 +190,7 @@ computePI <- function(obsdata = NULL,
       select(-breaks)
   }
   
-  if (quo_is_null(LLOQ)) {
+  if (rlang::quo_is_null(LLOQ)) {
     BINS <- obsdatabins %>%
       distinct(BIN, XMIN, XMAX, XMED, XMEAN, NOBS)
   } else {
@@ -206,13 +212,13 @@ computePI <- function(obsdata = NULL,
     group_by_at(stratifyvarsbreaks) %>%
     do({
       if (length(stratifyvarsbreaks)>0) {
-        uv <- t(unique(.[,stratifyvarsbreaks]))
+        uv <- t(unique(.data[,stratifyvarsbreaks]))
         msg1 <- paste0(paste(apply(uv, 2, function(x) paste(rownames(uv), x, sep="=")), collapse=", "), " ")
       } else {
         msg1 <- ""
       }
-      msg2 <- paste0("[",length(.$XRIGHT),"] ")
-      msg3 <- paste(signif(sort(c(min(.$XLEFT), .$XRIGHT)),3), collapse=" < ")
+      msg2 <- paste0("[",length(.data$XRIGHT),"] ")
+      msg3 <- paste(signif(sort(c(min(.data$XLEFT), .data$XRIGHT)),3), collapse=" < ")
       message(paste0(msg1, msg2, msg3))
       
       data.frame()
@@ -220,7 +226,7 @@ computePI <- function(obsdata = NULL,
   
   simdatabins$BIN <- rep(obsdatabins$BIN, time = NREP)
   
-  if (filterblq & !quo_is_null(LLOQ)) {
+  if (filterblq & !rlang::quo_is_null(LLOQ)) {
     obsdatabins <- obsdatabins %>% filter(LLOQFL==0)
     simdatabins <- simdatabins %>% filter(LLOQFL==0)
   }
@@ -242,7 +248,7 @@ computePI <- function(obsdata = NULL,
       dplyr::mutate(DVC = !!DV)
   }
   
-  if (quo_is_null(LLOQ)) {
+  if (rlang::quo_is_null(LLOQ)) {
     PIobs <- data.table::as.data.table(obsdatabins)[, 
                                                     list(QNAME = paste0("",100*PI,"%PI"),
                                                          RAWOBS = quantile(DVC, probs = PI, type = quantile_type, na.rm = T)),
@@ -289,7 +295,7 @@ computePI <- function(obsdata = NULL,
   
   PI <- merge(PI, PIobs, all.x=TRUE, by=c(stratifyvars,"BIN","QNAME"))
   
-  if (!quo_is_null(LLOQ)) {
+  if (!rlang::quo_is_null(LLOQ)) {
     PCTBLQsim <- as.data.table(simdatabins)[, 
                                             list(QNAME = "PercentBLQ",
                                                  SIM = 100 * mean(LLOQFL)),
