@@ -16,7 +16,7 @@ Depends:
     R (>= 3.3.0),
     data.table (>= 1.9.8)
 Imports:
-    rlang,
+    rlang (>= 0.3.0),
     vpc,
     dplyr,
     classInt
