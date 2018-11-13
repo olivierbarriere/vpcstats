@@ -137,7 +137,7 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
         }
         
         obsdatabins <- obsdatabins %>% 
-          left_join(obsdatabins %>% do(cutbreaks(., breaks)), #join to preserver original order
+          left_join(obsdatabins %>% do(cutbreaks(.data, breaks)), #join to preserver original order
                     by=names(obsdatabins)) 
       }
       
@@ -153,7 +153,7 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
           mutate(TIME = !!TIME,
                  NBINS = !!NBINS) %>%
           select_at(c(stratifyvars, "TIME","NBINS")) %>%
-          do(data.frame(breaks = classInt::classIntervals(.$TIME, n=unique(.$NBINS), style=bin_style)$brks))
+          do(data.frame(breaks = classInt::classIntervals(.data$TIME, n=unique(.data$NBINS), style=bin_style)$brks))
       } else {
         stop("Error: Unknown binning style")
       }
@@ -212,13 +212,13 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
     group_by_at(stratifyvarsbreaks) %>%
     do({
       if (length(stratifyvarsbreaks)>0) {
-        uv <- t(unique(.[,stratifyvarsbreaks]))
+        uv <- t(unique(.data[,stratifyvarsbreaks]))
         msg1 <- paste0(paste(apply(uv, 2, function(x) paste(rownames(uv), x, sep="=")), collapse=", "), " ")
       } else {
         msg1 <- ""
       }
-      msg2 <- paste0("[",length(.$XRIGHT),"] ")
-      msg3 <- paste(signif(sort(c(min(.$XLEFT), .$XRIGHT)),3), collapse=" < ")
+      msg2 <- paste0("[",length(.data$XRIGHT),"] ")
+      msg3 <- paste(signif(sort(c(min(.data$XLEFT), .data$XRIGHT)),3), collapse=" < ")
       message(paste0(msg1, msg2, msg3))
       
       data.frame()
