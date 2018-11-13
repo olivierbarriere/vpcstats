@@ -88,17 +88,17 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
   }
   
   if ("ID" %in% names(obsdatabins) & "ID" %in% names(simdatabins)) {
-    if (!all.equal(
+    if (!isTRUE(all.equal(
       obsdatabins %>% pull(ID),
-      simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID))) {
+      simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID)))) {
       stop("Error: ID's of your Obs and Sim data are not identical")
     }
   }
   
-  if (!all.equal(
+  if (!isTRUE(all.equal(
     obsdatabins %>% mutate(TIME = !!TIME) %>% pull(TIME),
     simdatabins %>% filter(!!REPL == min(!!REPL)) %>% mutate(TIME = !!TIME) %>% pull(TIME),
-    check.attributes = FALSE)) {
+    check.attributes = FALSE))) {
     stop("Error: Time columns of Obs and Sim data are not identical or not in the same order")
   }
   
