@@ -1,4 +1,4 @@
-ComputePI
+vpcstats
 ========
 
 [![Travis-CI Build Status](https://travis-ci.org/smouksassi/ComputePI.svg?branch=master)](https://travis-ci.org/smouksassi/ComputePI)
@@ -7,7 +7,7 @@ ComputePI
 ```
 # Install the development version from GitHub:
 # install.packages("devtools")
-devtools::install_github("smouksassi/ComputePI")
+devtools::install_github("olivierbarriere/vpcstats")
 
 ```
 
@@ -29,7 +29,7 @@ exampleobs$REP <- 0
 examplesim <- examplesim[examplesim$MDV == 0, ]#
 exampleobs$LLOQ <- ifelse(exampleobs$ISM == 0, 100, 25)
 examplesim$LLOQ <- ifelse(examplesim$ISM == 0, 100, 25)
-VPCDATA<- computePI(
+VPCDATA<- vpcstats(
   obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
   NBINS = NULL, LLOQ = LLOQ)
 

@@ -1,4 +1,4 @@
-#' ComputePI
+#' vpcstats
 #'
 #' @param obsdata Obs dataset
 #' @param simdata Sim dataset
@@ -10,7 +10,7 @@
 #' @param NBINS NBINS column: a name, an expression, or a fixed value
 #' @param bin_by_strata Flag to indicate if the binning is by strata (default) or global
 #' @param bin_style Style of the binning procedure: "ntile" (default), {"fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", or "jenks"} (ClassInterval styles), "breaks" (user defined breaks)
-#' @param breaks User defined breaks: either a vector or a wide data.frame with a column "breaks", and other colums corresponding to the stratify variables
+#' @param breaks User defined breaks: either a vector or a wide data.frame with a column "breaks", and other columns corresponding to the stratify variables
 #' @param cut_right Flag to indicate if the intervals should be closed on the right (and open on the left) or vice versa. Default to False, unlike the cut function.
 #' @param quantile_type Quantile algorithm: an integer between 4 and 9 selecting one of the nine quantile algorithms
 #' @param filterblq Flag to remove the BLQ values just before computing the quantiles, but after "merging" with rep(, sim) 
@@ -29,7 +29,7 @@
 #' @export
 #' @examples
 
-computePI <- function(obsdata = NULL,
+vpcstats <- function(obsdata = NULL,
                       simdata,
                       stratify = NULL,
                       TIME = TIME,

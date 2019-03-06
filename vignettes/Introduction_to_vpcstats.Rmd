@@ -1,10 +1,10 @@
 ---
-title: "Introduction to computePI"
+title: "Introduction to vpcstats"
 author: "Samer Mouksassi"
 date: "`r Sys.Date()`"
 output: rmarkdown::html_vignette
 vignette: >
-  %\VignetteIndexEntry{Introduction to computePI}
+  %\VignetteIndexEntry{Introduction to vpcstats}
   %\VignetteEngine{knitr::rmarkdown}
   %\VignetteEncoding{UTF-8}
 ---
@@ -23,7 +23,7 @@ require(rlang)
 require(dplyr)
 require(ggplot2)
 require(data.table)
-require(computePI)
+require(vpcstats)
 ```
 
 
@@ -41,7 +41,7 @@ When producing VPC plots you must:
 
 * Produce a plot that compare observed to simulated PI.
 
-The compute PI package makes the computations of needed percentiles fast and easy:
+The vpcstats package makes the computations of needed percentiles fast and easy:
 
 
 * It uses efficient computations using data.table, so you spend less time waiting.
@@ -49,8 +49,8 @@ The compute PI package makes the computations of needed percentiles fast and eas
 
 To get started:
 ```
-devtools::install_github("smouksassi/computePI")
-library(computePI)
+devtools::install_github("olivierbarriere/vpcstats")
+library(vpcstats)
 ```
 
 
@@ -70,7 +70,7 @@ ggplot(obsdata[obsdata$TIME > 120,]) +
 
 ```
 
-## ComputePI Options
+##vpcstats Options
 Let us focus on the data with Time > 120 and test the functionality of different number of binning by DVTYPE.
 
 Data preparation
@@ -97,7 +97,7 @@ simdata$nbins <- rep(obsdata$nbins,nsims)
 ```
 
 ```{r}
-VPCPIDATA<- computePI(
+VPCPIDATA<- vpcstats(
   obsdata = obsdata, simdata = simdata, stratify = ~DVTYPE,REP = REPL,
   NBINS = nbins, LLOQ = NULL)
 ```
