@@ -1,17 +1,17 @@
-Package: computePI
+Package: vpcstats
 Type: Package
 Title: Compute Prediction Intervals on Simulated versus Observed Data
 Version: 0.1.0
 Authors@R: c(
-    person("Samer", "Mouksassi", email = "samermouksassi@gmail.com",
+      person("Olivier", "Barriere", email = "olivier.barriere@gmail.com",
       role = c("aut", "cre")),
-       person("Olivier", "Barriere", email = "olivier.barriere@gmail.com",
+      person("Samer", "Mouksassi", email = "samermouksassi@gmail.com",
       role = c("aut"))
     )
-Maintainer: <samermouksassi@gmail.com>
+Maintainer: <olivier.barriere@gmail.com>
 Description: .
-URL: https://github.com/smouksassi/ComputePI
-BugReports: https://github.com/smouksassi/ComputePI/issues
+URL: https://github.com/olivierbarriere/vpcstats
+BugReports: https://github.com/olivierbarriere/vpcstats/issues
 Depends:
     R (>= 3.3.0),
     data.table (>= 1.9.8)

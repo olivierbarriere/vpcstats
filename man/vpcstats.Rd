@@ -56,3 +56,18 @@ vpcstats(obsdata = NULL, simdata, stratify = NULL, TIME = TIME,
 \description{
 vpcstats
 }
+\examples{
+
+library(vpcstats)
+exampleobs <- simple_data$obs
+exampleobs <- exampleobs[exampleobs$MDV == 0, ]
+examplesim <- simple_data$sim
+exampleobs$PRED <- examplesim[1:nrow(exampleobs), "PRED"]
+exampleobs$REP <- 0
+examplesim <- examplesim[examplesim$MDV == 0, ]#
+exampleobs$LLOQ <- ifelse(exampleobs$ISM == 0, 100, 25)
+examplesim$LLOQ <- ifelse(examplesim$ISM == 0, 100, 25)
+VPCDATA<- vpcstats(
+obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
+NBINS = NULL, LLOQ = LLOQ)
+}

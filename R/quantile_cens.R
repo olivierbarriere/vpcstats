@@ -5,8 +5,6 @@
 #' @param limit censoring limit
 #' @param cens censoring direction (left/right)
 #' @param ... other arguments to be passed
-#' 
-#' @return
 #' @export
 #' 
 quantile_cens <- function(x, p = 0.5, limit = 1, cens = "left", ...) {

@@ -13,13 +13,13 @@ devtools::install_github("olivierbarriere/vpcstats")
 
 ### Usage
 ```
-require(vpc)
-require(magrittr)
-require(rlang)
-require(dplyr)
-require(ggplot2)
-require(data.table)
-require(computePI)
+library(vpc)
+library(magrittr)
+library(rlang)
+library(dplyr)
+library(ggplot2)
+library(data.table)
+library(vpcstats)
 
 exampleobs <- simple_data$obs
 exampleobs <- exampleobs[exampleobs$MDV == 0, ]
