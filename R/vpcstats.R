@@ -160,7 +160,7 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
           mutate(BIN = ntile(!!TIME, !!NBINS))
       } else if (!is.null(bin_style) && bin_style %in% c("fixed", "sd", "equal", "pretty", "quantile", "kmeans", "hclust", "bclust", "fisher", "jenks")) {
         obsdatabins <- obsdatabins %>%
-          mutate(BIN = as.numeric(cut(!!TIME, classInt::classIntervals(!!TIME, n=!!NBINS, style=bin_style)$brks, right=cut_right, include.lowest=T)))
+          mutate(BIN = as.numeric(cut(!!TIME, unique(classInt::classIntervals(!!TIME, n=!!NBINS, style=bin_style)$brks), right=cut_right, include.lowest=T)))
         
         breaks <- obsdatabins %>%
           mutate(TIME = !!TIME,
