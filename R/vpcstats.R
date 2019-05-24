@@ -45,9 +45,11 @@
 vpcstats <- function(obsdata = NULL,
                      simdata,
                      stratify = NULL,
+                     ID = ID,
                      TIME = TIME,
                      DV = DV,
                      REPL = REP,
+                     PRED = PRED,
                      LLOQ = NULL,
                      NBINS = NULL,
                      bin_by_strata = TRUE,
@@ -62,16 +64,18 @@ vpcstats <- function(obsdata = NULL,
                      PI = c(0.05, 0.5, 0.95),
                      CI = c(0.025, 0.5, 0.975),
                      bootstrapobsdata = FALSE) {
-  REP = ID = BIN = LLOQFL = PRED = MEDPRED = DVC = SIM = NOBS = NULL
+  REP = BIN = LLOQFL = MEDPRED = DVC = SIM = NOBS = NULL
   XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
   
   NBINS <- rlang::enquo(NBINS)
   if ( rlang::quo_is_null(NBINS)) {
     message("No binning done")
   }
+  ID <-  rlang::enquo(ID)
   TIME <-  rlang::enquo(TIME)
   DV <-  rlang::enquo(DV)
   REPL <-  rlang::enquo(REPL)
+  PRED <-  rlang::enquo(PRED)
   LLOQ <-  rlang::enquo(LLOQ)
   if ( rlang::quo_is_null(LLOQ)) {
     message("LLOQ is not defined")
@@ -100,13 +104,13 @@ vpcstats <- function(obsdata = NULL,
     stop("Error: Sim dataset length is not a multiple of obs dataset length")
   }
   
-  if ("ID" %in% names(obsdatabins) & "ID" %in% names(simdatabins)) {
+  #if (rlang::quo_text(ID) %in% names(obsdatabins) & rlang::quo_text(ID) %in% names(simdatabins)) {
     if (!isTRUE(all.equal(
-      obsdatabins %>% pull(ID),
-      simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(ID)))) {
+      obsdatabins %>% pull(!!ID),
+      simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(!!ID)))) {
       stop("Error: ID's of your Obs and Sim data are not identical")
     }
-  }
+  #}
   
   if (!isTRUE(all.equal(
     obsdatabins %>% mutate(TIME = !!TIME) %>% pull(TIME),
@@ -247,15 +251,15 @@ vpcstats <- function(obsdata = NULL,
   
   if (predcorrection) {
     obsdatabins <- obsdatabins %>%
-      dplyr::mutate(MEDPRED = median(PRED))
+      dplyr::mutate(MEDPRED = median(!!PRED))
     
     if (!predcorrection_islogdv) {
       obsdatabins <- obsdatabins %>%
-        dplyr::mutate(DVC = !!DV * MEDPRED / PRED)
+        dplyr::mutate(DVC = !!DV * MEDPRED / !!PRED)
     }
     if (predcorrection_islogdv) {
       obsdatabins <- obsdatabins %>%
-        dplyr::mutate(DVC = !!DV + (MEDPRED - PRED))
+        dplyr::mutate(DVC = !!DV + (MEDPRED - !!PRED))
     }
   } else {
     obsdatabins <- obsdatabins %>%
@@ -284,11 +288,11 @@ vpcstats <- function(obsdata = NULL,
     simdatabins$MEDPRED <- rep(obsdatabins$MEDPRED, time = NREP)
     if (!predcorrection_islogdv) {
       simdatabins <- simdatabins %>%
-        dplyr::mutate(DVC = !!DV * MEDPRED / PRED)
+        dplyr::mutate(DVC = !!DV * MEDPRED / !!PRED)
     }
     if (predcorrection_islogdv) {
       simdatabins <- simdatabins %>%
-        dplyr::mutate(DVC = !!DV + (MEDPRED - PRED))
+        dplyr::mutate(DVC = !!DV + (MEDPRED - !!PRED))
     }
   } else {
     simdatabins <- simdatabins %>%
@@ -331,8 +335,14 @@ vpcstats <- function(obsdata = NULL,
   PI <- as.data.frame(merge(PI, BINS, all.x=TRUE, by=c(stratifyvars,"BIN")))
   PCTBLQ <- if (!is.null(PCTBLQ)) as.data.frame(merge(PCTBLQ, BINS, all.x=TRUE, by=c(stratifyvars,"BIN"))) else NULL
   BINS <- as.data.frame(BINS)
+  if (predcorrection) {
+    DVC <- obsdatabins %>% ungroup() %>% select(!!ID, !!TIME, !!DV, !!PRED, MEDPRED, DVC, !!stratifyvars) %>% as.data.frame()
+  } else {
+    DVC <- NULL
+  }
   
-  list(PI = PI,
-       PCTBLQ = PCTBLQ,
-       BINS = BINS)
+  compact(list(PI = PI,
+               PCTBLQ = PCTBLQ,
+               BINS = BINS,
+               DVC = DVC))
 }
