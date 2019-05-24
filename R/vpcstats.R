@@ -43,28 +43,28 @@
 #' NBINS = NULL, LLOQ = LLOQ)
 
 vpcstats <- function(obsdata = NULL,
-                      simdata,
-                      stratify = NULL,
-                      TIME = TIME,
-                      DV = DV,
-                      REPL = REP,
-                      LLOQ = NULL,
-                      NBINS = NULL,
-                      bin_by_strata = TRUE,
-                      bin_style = "ntile",
-                      breaks = NULL,
-                      cut_right = FALSE,
-                      quantile_type = 7,
-                      filterblq = FALSE,
-                      predcorrection = FALSE,
-                      predcorrection_islogdv = FALSE,
-                      predcorrection_lowerbnd = 0,
-                      PI = c(0.05, 0.5, 0.95),
-                      CI = c(0.025, 0.5, 0.975),
-                      bootstrapobsdata = FALSE) {
-REP = ID = BIN = LLOQFL = PRED = MEDPRED = DVC = SIM = NOBS = NULL
-XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
-
+                     simdata,
+                     stratify = NULL,
+                     TIME = TIME,
+                     DV = DV,
+                     REPL = REP,
+                     LLOQ = NULL,
+                     NBINS = NULL,
+                     bin_by_strata = TRUE,
+                     bin_style = "ntile",
+                     breaks = NULL,
+                     cut_right = FALSE,
+                     quantile_type = 7,
+                     filterblq = FALSE,
+                     predcorrection = FALSE,
+                     predcorrection_islogdv = FALSE,
+                     predcorrection_lowerbnd = 0,
+                     PI = c(0.05, 0.5, 0.95),
+                     CI = c(0.025, 0.5, 0.975),
+                     bootstrapobsdata = FALSE) {
+  REP = ID = BIN = LLOQFL = PRED = MEDPRED = DVC = SIM = NOBS = NULL
+  XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
+  
   NBINS <- rlang::enquo(NBINS)
   if ( rlang::quo_is_null(NBINS)) {
     message("No binning done")
@@ -128,9 +128,10 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
   if (bin_by_strata) {
     obsdatabins <- obsdatabins %>%
       group_by_at(stratifyvars)
+    
+    simdatabins <- simdatabins %>%
+      group_by_at(stratifyvars)
   }
-  simdatabins <- simdatabins %>%
-    group_by_at(stratifyvars)
   
   if (rlang::quo_is_null(NBINS) & is.null(breaks)) {
     obsdatabins <- obsdatabins %>%
@@ -174,7 +175,7 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
   }
   
   obsdatabins <- obsdatabins %>%
-    group_by_at(stratifyvars) %>% #Now that the binning is done, unconditionnaly group by strata (even if bin_by_strata is false)
+    #group_by_at(stratifyvars) %>% #Now that the binning is done, unconditionnaly group by strata (even if bin_by_strata is false)
     group_by(BIN, add = TRUE) %>%
     mutate(XMIN = min(!!TIME),
            XMAX = max(!!TIME),
@@ -186,8 +187,8 @@ XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
     breaks <- obsdatabins %>%
       group_by_at(stratifyvars) %>%
       distinct(BIN, XMIN, XMAX)
-      groupvars<- group_vars(breaks)
-      breaks <- breaks %>%
+    groupvars <- group_vars(breaks)
+    breaks <- breaks %>%
       arrange_at(c(groupvars,"BIN")) %>%
       #mutate(XLEFT = (XMIN+c(-Inf,XMAX[-length(XMAX)]))/2, #Infinite left and right boundaries
       #       XRIGHT = (XMAX+c(XMIN[-1],Inf))/2) %>%
