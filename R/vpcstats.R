@@ -132,9 +132,6 @@ vpcstats <- function(obsdata = NULL,
   if (bin_by_strata) {
     obsdatabins <- obsdatabins %>%
       group_by_at(stratifyvars)
-    
-    simdatabins <- simdatabins %>%
-      group_by_at(stratifyvars)
   }
   
   if (rlang::quo_is_null(NBINS) & is.null(breaks)) {
@@ -179,21 +176,27 @@ vpcstats <- function(obsdata = NULL,
   }
   
   obsdatabins <- obsdatabins %>%
-    #group_by_at(stratifyvars) %>% #Now that the binning is done, unconditionnaly group by strata (even if bin_by_strata is false)
     group_by(BIN, add = TRUE) %>%
     mutate(XMIN = min(!!TIME),
            XMAX = max(!!TIME),
            XMED = median(!!TIME),
            XMEAN = mean(!!TIME),
-           NOBS = length(DV))
+           NOBS = length(!!DV))
+  
+  #Now that the binning is done, unconditionnaly group by strata (even if bin_by_strata is false)
+  obsdatabins <- obsdatabins %>%
+    group_by_at(stratifyvars) %>%
+    group_by(BIN, add = TRUE)
+  
+  simdatabins <- simdatabins %>%
+    group_by_at(stratifyvars)
   
   if (is.null(breaks)) {
     breaks <- obsdatabins %>%
-      group_by_at(stratifyvars) %>%
       distinct(BIN, XMIN, XMAX)
-    groupvars <- group_vars(breaks)
+
     breaks <- breaks %>%
-      arrange_at(c(groupvars,"BIN")) %>%
+      arrange_at(c(stratifyvars,"BIN")) %>%
       #mutate(XLEFT = (XMIN+c(-Inf,XMAX[-length(XMAX)]))/2, #Infinite left and right boundaries
       #       XRIGHT = (XMAX+c(XMIN[-1],Inf))/2) %>%
       mutate(XLEFT = (XMIN+c(XMIN[1],XMAX[-length(XMAX)]))/2, #Min and max left and right boundaries
