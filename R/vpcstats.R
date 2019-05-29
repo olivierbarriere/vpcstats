@@ -105,11 +105,11 @@ vpcstats <- function(obsdata = NULL,
   }
   
   #if (rlang::quo_text(ID) %in% names(obsdatabins) & rlang::quo_text(ID) %in% names(simdatabins)) {
-    if (!isTRUE(all.equal(
-      obsdatabins %>% pull(!!ID),
-      simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(!!ID)))) {
-      stop("Error: ID's of your Obs and Sim data are not identical")
-    }
+  if (!isTRUE(all.equal(
+    obsdatabins %>% pull(!!ID),
+    simdatabins %>% filter(!!REPL == min(!!REPL)) %>% pull(!!ID)))) {
+    stop("Error: ID's of your Obs and Sim data are not identical")
+  }
   #}
   
   if (!isTRUE(all.equal(
@@ -194,7 +194,7 @@ vpcstats <- function(obsdata = NULL,
   if (is.null(breaks)) {
     breaks <- obsdatabins %>%
       distinct(BIN, XMIN, XMAX)
-
+    
     breaks <- breaks %>%
       arrange_at(c(stratifyvars,"BIN")) %>%
       #mutate(XLEFT = (XMIN+c(-Inf,XMAX[-length(XMAX)]))/2, #Infinite left and right boundaries
@@ -344,8 +344,9 @@ vpcstats <- function(obsdata = NULL,
     DVC <- NULL
   }
   
-  compact(list(PI = PI,
-               PCTBLQ = PCTBLQ,
-               BINS = BINS,
-               DVC = DVC))
+  Filter(Negate(is.null), 
+         list(PI = PI,
+              PCTBLQ = PCTBLQ,
+              BINS = BINS,
+              DVC = DVC))
 }
