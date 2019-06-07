@@ -1,5 +1,7 @@
 #' vpcstats
 #'
+#' Note: this function is deprecated in favor of the new "pipe-style" interface. See \code{\link{vpcstats}}.
+#'
 #' @param obsdata Obs dataset
 #' @param simdata Sim dataset
 #' @param stratify Stratify formula: right hand side only
@@ -42,7 +44,7 @@
 #' obsdata = exampleobs, simdata = examplesim, stratify = ~ISM,
 #' NBINS = NULL, LLOQ = LLOQ)
 
-vpcstats <- function(obsdata = NULL,
+vpcstats.data.frame <- function(obsdata = NULL,
                      simdata,
                      stratify = NULL,
                      ID = ID,
@@ -64,6 +66,9 @@ vpcstats <- function(obsdata = NULL,
                      PI = c(0.05, 0.5, 0.95),
                      CI = c(0.025, 0.5, 0.975),
                      bootstrapobsdata = FALSE) {
+
+  .Deprecated("observed")
+
   REP = BIN = LLOQFL = MEDPRED = DVC = SIM = NOBS = NULL
   XMIN = XMAX = XMED = XMEAN = XLEFT= XRIGHT = NULL
   

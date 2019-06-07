@@ -4,3 +4,6 @@
 ^data-raw$
 .git
 ^cran-comments\.md$
+^\..*\.swp$
+^.*\.R\.tmp\.R$
+^_config.yml$

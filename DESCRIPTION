@@ -1,10 +1,12 @@
 Package: vpcstats
 Type: Package
 Title: Compute Prediction Intervals on Simulated versus Observed Data
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: c(
       person("Olivier", "Barriere", email = "olivier.barriere@gmail.com",
       role = c("aut", "cre")),
+      person("Benjamin", "Rich", email = "mail@benjaminrich.net",
+      role = c("aut")),
       person("Samer", "Mouksassi", email = "samermouksassi@gmail.com",
       role = c("aut"))
     )
@@ -24,10 +26,10 @@ Suggests:
     knitr,
     rmarkdown,
     ggplot2,
-    egg
+    egg,
+    cluster,
+    magrittr
 License: MIT + file LICENSE
-SystemRequirements: pandoc with https support
-Encoding: UTF-8
 LazyData: true
 VignetteBuilder: knitr
 RoxygenNote: 6.1.1
