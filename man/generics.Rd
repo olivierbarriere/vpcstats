@@ -41,16 +41,28 @@ in a VPC. They would typically be chained together using the "pipe" operator
 \examples{
 
 \dontrun{
-library(vpc)
+library(data.table)
 library(magrittr)
+library(vpc)
 
 exampleobs <- as.data.table(vpc::simple_data$obs)[MDV == 0]
 examplesim <- as.data.table(vpc::simple_data$sim)[MDV == 0]
 exampleobs$PRED <- examplesim[REP == 1, PRED]
+exampleobs$SEX <- rep(c("F", "M"), len=nrow(exampleobs))
 
 vpc <- observed(exampleobs, x=TIME, y=DV) \%>\%
     simulated(examplesim, y=DV) \%>\%
     stratify(~ ISM) \%>\%
+    binning(TIME) \%>\%
+    predcorrect(pred=PRED) \%>\%
+    vpcstats()
+
+plot(vpc)
+
+# Example with 2-way stratification
+
+vpc <- vpc \%>\%
+    stratify(SEX ~ ISM) \%>\%
     binning(TIME) \%>\%
     predcorrect(pred=PRED) \%>\%
     vpcstats()

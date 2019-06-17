@@ -9,16 +9,28 @@
 #' @examples
 #'
 #' \dontrun{
-#' library(vpc)
+#' library(data.table)
 #' library(magrittr)
+#' library(vpc)
 #'
 #' exampleobs <- as.data.table(vpc::simple_data$obs)[MDV == 0]
 #' examplesim <- as.data.table(vpc::simple_data$sim)[MDV == 0]
 #' exampleobs$PRED <- examplesim[REP == 1, PRED]
+#' exampleobs$SEX <- rep(c("F", "M"), len=nrow(exampleobs))
 #' 
 #' vpc <- observed(exampleobs, x=TIME, y=DV) %>%
 #'     simulated(examplesim, y=DV) %>%
 #'     stratify(~ ISM) %>%
+#'     binning(TIME) %>%
+#'     predcorrect(pred=PRED) %>%
+#'     vpcstats()
+#'
+#' plot(vpc)
+#'
+#' # Example with 2-way stratification
+#'
+#' vpc <- vpc %>%
+#'     stratify(SEX ~ ISM) %>%
 #'     binning(TIME) %>%
 #'     predcorrect(pred=PRED) %>%
 #'     vpcstats()
@@ -136,9 +148,18 @@ censoring.vpcstatsobj <- function(o, blq, lloq, data=o$data, ...) {
 #' @export
 stratify.vpcstatsobj <- function(o, formula, data=o$data, ...) {
     if (!inherits(formula, "formula")) {
-        stop("formula must be a one-sided formula")
+        stop("Expecting a formula")
     }
-    strat <- as.data.table(model.frame(formula, data))
+    flist <- as.list(formula)
+    if (length(flist) == 3) {
+        lhs <- as.call(c(flist[[1]], flist[[2]]))
+        rhs <- as.call(c(flist[[1]], flist[[3]]))
+        strat <- cbind(
+            as.data.table(model.frame(lhs, data)),
+            as.data.table(model.frame(rhs, data)))
+    } else {
+        strat <- as.data.table(model.frame(formula, data))
+    }
 
     reserved.names <- c("x", "y", "ypc", "pred", "blq", "lloq", "repl", "bin", "xbin", "qname", "lo", "md", "hi",
         "nobs", "xmedian", "xmean", "xmin", "xmax", "xmid", "xleft", "xright", "xcenter")
@@ -147,7 +168,7 @@ stratify.vpcstatsobj <- function(o, formula, data=o$data, ...) {
                 paste0(reserved.names, collapse=", ")))
     }
     o$obs[, names(strat) := strat]
-    update(o, strat=strat)
+    update(o, strat=strat, strat.formula=formula)
 }
 
 #' @export
@@ -462,7 +483,7 @@ print.vpcstatsobj <- function(x, ...) {
 #' @param ... Further arguments can be specified but are ignored.
 #' @return A `ggplot` object.
 #' @export
-plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top") {
+plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top", facet.scales="free") {
     vpc <- x
 
     qlvls <- levels(vpc$stats$qname)
@@ -521,7 +542,11 @@ plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xla
     }
 
     if (!is.null(vpc$strat)) {
-        g <- g + ggplot2::facet_wrap(names(vpc$strat), scales="free")
+        if (length(as.list(vpc$strat.formula)) == 3) {
+            g <- g + ggplot2::facet_grid(vpc$strat.formula, scales=facet.scales)
+        } else {
+            g <- g + ggplot2::facet_wrap(names(vpc$strat), scales=facet.scales)
+        }
     }
 
     g

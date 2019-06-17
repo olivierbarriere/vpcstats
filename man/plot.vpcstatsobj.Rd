@@ -7,7 +7,7 @@
 \method{plot}{vpcstatsobj}(x, ..., show.points = TRUE,
   show.boundaries = TRUE, xlab = NULL, ylab = NULL,
   color = c("red", "blue", "red"), linetype = c("dotted", "solid",
-  "dashed"), legend.position = "top")
+  "dashed"), legend.position = "top", facet.scales = "free")
 }
 \arguments{
 \item{x}{An object.}
