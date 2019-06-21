@@ -691,7 +691,13 @@ cut_at <- function(breaks) {
     breaks <- .check_breaks(breaks)
     function(x, ..., right=F) {
         breaks <- .resolve_breaks(breaks, ...)
-        breaks <- sort(unique(c(-Inf, breaks, Inf)))
+        breaks <- sort(unique(breaks))
+        if (min(x) < min(breaks)) {
+            breaks <- c(min(x), breaks)
+        }
+        if (max(x) > max(breaks)) {
+            breaks <- c(breaks, max(x))
+        }
         as.character(cut(x, breaks, include.lowest=T, right=right))
     }
 }
@@ -765,12 +771,28 @@ bin_by_classInt <- function(style, nbins=NULL) {
         nbins <- .check_nbins(nbins)
     }
     function(x, ...) {
+        args <- list(var=x, style=style)
         if (!is.null(nbins)) {
             nbins <- .resolve_nbins(nbins, ...)
-            breaks <- classInt::classIntervals(var=x, style=style, n=nbins, ...)$brks
-        } else {
-            breaks <- classInt::classIntervals(var=x, style=style, ...)$brks
+            args$n <- nbins
         }
+        args <- c(args, list(...))
+        if (style %in% c("kmeans", "hclust", "dpih")) {
+            # These don't accept '...' arguments
+            args1 <- args[intersect(names(args), formalArgs(classInt::classIntervals))]
+            args2 <- if (style == "kmeans") {
+                args[intersect(names(args), formalArgs(stats::kmeans))]
+            } else if (style == "hclust") {
+                args[intersect(names(args), formalArgs(stats::hclust))]
+            } else if (style == "dpih") {
+                args[intersect(names(args), formalArgs(KernSmooth::dpih))]
+            } else {
+                list()
+            }
+            args <- c(args1, args2)
+        }
+        args <- args[!duplicated(args)]
+        breaks <- do.call(classInt::classIntervals, args)$brks
         cut_at(breaks)(x)
     }
 }
