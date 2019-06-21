@@ -154,9 +154,20 @@ stratify.vpcstatsobj <- function(o, formula, data=o$data, ...) {
     if (length(flist) == 3) {
         lhs <- as.call(c(flist[[1]], flist[[2]]))
         rhs <- as.call(c(flist[[1]], flist[[3]]))
-        strat <- cbind(
-            as.data.table(model.frame(lhs, data)),
-            as.data.table(model.frame(rhs, data)))
+        if (flist[[2]] == as.symbol(".")) {
+            lhsmf <- NULL
+        } else {
+            lhsmf <- as.data.table(model.frame(lhs, data))
+        }
+        if (flist[[3]] == as.symbol(".")) {
+            rhsmf <- NULL
+        } else {
+            rhsmf <- as.data.table(model.frame(rhs, data))
+        }
+        if (is.null(lhsmf) && is.null(rhsmf)) {
+            stop("Invalid stratification formula: no variables specified")
+        }
+        strat <- cbind(lhsmf, rhsmf)
     } else {
         strat <- as.data.table(model.frame(formula, data))
     }
