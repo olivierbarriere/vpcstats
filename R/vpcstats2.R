@@ -304,7 +304,7 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     } else {
         stratbin <- data.table(bin)
     }
-    o <- update(o, stratbin=stratbin)
+    o <- update(o, stratbin=stratbin, bin.by.strata=by.strata)
 
     # Assign an x value to each bin
     if (is.numeric(xbin)) {
@@ -419,6 +419,8 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
 
 #' Obtain information about the bins from a VPC object.
 #' @param o An object.
+#' @param by.strata Should the calculations be done by strata? Defaults to what
+#' was specified when the binning was done.
 #' @param ... Additional arguments.
 #' @return A `data.table` containing the following columns:
 #' \itemize{
@@ -443,7 +445,7 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
 bininfo <- function(o, ...) UseMethod("bininfo")
 
 #' @export
-bininfo.vpcstatsobj <- function(o, ...) {
+bininfo.vpcstatsobj <- function(o, by.strata=o$bin.by.strata, ...) {
     f1 <- function(x) {
         nobs    <- sum(!is.na(x))
         xmedian <- median(x, na.rm=T)
@@ -453,8 +455,6 @@ bininfo.vpcstatsobj <- function(o, ...) {
         xmid    <- 0.5*(xmin + xmax)
         data.table(nobs, xmedian, xmean, xmin, xmax, xmid)
     }
-    bi <- o$obs[, f1(x), by=o$stratbin]
-    setkeyv(bi, c(names(o$strat), "xmin"))
 
     # Compute xleft and xright
     f2 <- function(xmin, xmax) {
@@ -466,7 +466,17 @@ bininfo.vpcstatsobj <- function(o, ...) {
         xcenter <- 0.5*(xleft + xright)
         data.table(xleft, xright, xcenter)
     }
-    bi[, c(.SD, f2(xmin, xmax)), by=names(o$strat)]
+    if (isTRUE(by.strata)) {
+        bi <- o$obs[, f1(x), by=o$stratbin]
+        setkeyv(bi, c(names(o$strat), "xmin"))
+        bi[, c(.SD, f2(xmin, xmax)), by=names(o$strat)]
+    } else {
+        bi <- o$obs[, f1(x), by=bin]
+        setkeyv(bi, "xmin")
+        bi <- cbind(bi, bi[, f2(xmin, xmax)])
+        bi <- bi[unique(o$stratbin), on="bin"]
+        bi[, c(names(o$stratbin), setdiff(names(bi), names(o$stratbin))), with=F]
+    }
 }
 
 #' Print a \code{vpcstatsobj}.

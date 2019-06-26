@@ -10,6 +10,9 @@ bininfo(o, ...)
 \item{o}{An object.}
 
 \item{...}{Additional arguments.}
+
+\item{by.strata}{Should the calculations be done by strata? Defaults to what
+was specified when the binning was done.}
 }
 \value{
 A `data.table` containing the following columns:

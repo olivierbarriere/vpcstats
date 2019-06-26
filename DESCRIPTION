@@ -31,5 +31,6 @@ Suggests:
     magrittr
 License: MIT + file LICENSE
 LazyData: true
+Encoding: UTF-8
 VignetteBuilder: knitr
 RoxygenNote: 6.1.1
