@@ -542,6 +542,7 @@ plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xla
             colour=ggplot2::guide_legend(order=2),
             linetype=ggplot2::guide_legend(order=1)) +
         ggplot2::theme(
+            legend.key.width=ggplot2::unit(2, "lines"),
             legend.position=legend.position) +
         ggplot2::labs(x=xlab, y=ylab)
 
