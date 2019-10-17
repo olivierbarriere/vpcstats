@@ -2,9 +2,12 @@
 % Please edit documentation in R/vpcstats2.R
 \name{bininfo}
 \alias{bininfo}
+\alias{bininfo.vpcstatsobj}
 \title{Obtain information about the bins from a VPC object.}
 \usage{
 bininfo(o, ...)
+
+\method{bininfo}{vpcstatsobj}(o, by.strata = o$bin.by.strata, ...)
 }
 \arguments{
 \item{o}{An object.}
@@ -38,3 +41,8 @@ be included as well.
 \description{
 Obtain information about the bins from a VPC object.
 }
+\section{Methods (by class)}{
+\itemize{
+\item \code{vpcstatsobj}: Method for \code{vpcstatsobj}.
+}}
+

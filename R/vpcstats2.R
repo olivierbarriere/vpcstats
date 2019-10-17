@@ -38,6 +38,9 @@
 #' plot(vpc)
 #' }
 #'
+#' @import data.table
+#' @import magrittr
+#' @importFrom stats median model.frame quantile setNames update
 #' @name generics
 NULL
 
@@ -185,6 +188,9 @@ stratify.vpcstatsobj <- function(o, formula, data=o$data, ...) {
 #' @export
 binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", centers, breaks, nbins, altx, stratum=NULL, by.strata=T) {
 
+    keep <- i <- NULL
+    . <- list
+
     # If xbin is numeric, then that is the bin
     xbin <- eval(substitute(xbin), data, enclos=parent.frame())
     if (is.numeric(xbin)) {
@@ -322,6 +328,9 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
 
 #' @export
 predcorrect.vpcstatsobj <- function(o, pred, data=o$data, ..., log=FALSE) {
+
+    ypc <- y <- NULL
+
     if (missing(pred)) {
         pred <- o$pred
     } else {
@@ -358,6 +367,10 @@ nopredcorrect.vpcstatsobj <- function(o, ...) {
 
 #' @export
 vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.95, quantile.type=7) {
+
+    repl <- ypc <- blq <- y <- lloq <- NULL
+    . <- list
+
     obs      <- o$obs
     sim      <- o$sim
     predcor  <- o$predcor
@@ -419,8 +432,6 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
 
 #' Obtain information about the bins from a VPC object.
 #' @param o An object.
-#' @param by.strata Should the calculations be done by strata? Defaults to what
-#' was specified when the binning was done.
 #' @param ... Additional arguments.
 #' @return A `data.table` containing the following columns:
 #' \itemize{
@@ -444,8 +455,14 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
 #' @export
 bininfo <- function(o, ...) UseMethod("bininfo")
 
+#' @describeIn bininfo Method for \code{vpcstatsobj}.
+#' @param by.strata Should the calculations be done by strata? Defaults to what
+#' was specified when the binning was done.
 #' @export
 bininfo.vpcstatsobj <- function(o, by.strata=o$bin.by.strata, ...) {
+
+    x <- xmin <- xmax <- bin <- NULL
+
     f1 <- function(x) {
         nobs    <- sum(!is.na(x))
         xmedian <- median(x, na.rm=T)
@@ -501,10 +518,24 @@ print.vpcstatsobj <- function(x, ...) {
 
 #' Plot a \code{vpcstatsobj}.
 #' @param x An object.
+#' @param show.points Should the observed data points be plotted?
+#' @param show.boundaries Should the bin boundary be displayed?
+#' @param xlab A character label for the x-axis.
+#' @param ylab A character label for the y-axis.
+#' @param color A character vector of colors for the percentiles, from low to high.
+#' @param linetype A character vector of linetyps for the percentiles, from low to high.
+#' @param legend.position A character string specifying the position of the legend.
+#' @param facet.scales A character string specifying the `scales` argument to use for facetting.
 #' @param ... Further arguments can be specified but are ignored.
 #' @return A `ggplot` object.
+#' @seealso
+#' \code{ggplot}
 #' @export
 plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top", facet.scales="free") {
+
+    xbin <- lo <- hi <- qname <- md <- y <- xleft <- xright <- ypc <- NULL
+    . <- list
+
     vpc <- x
 
     qlvls <- levels(vpc$stats$qname)
@@ -801,13 +832,17 @@ bin_by_classInt <- function(style, nbins=NULL) {
         args <- c(args, list(...))
         if (style %in% c("kmeans", "hclust", "dpih")) {
             # These don't accept '...' arguments
-            args1 <- args[intersect(names(args), formalArgs(classInt::classIntervals))]
+            args1 <- args[intersect(names(args), methods::formalArgs(classInt::classIntervals))]
             args2 <- if (style == "kmeans") {
-                args[intersect(names(args), formalArgs(stats::kmeans))]
+                args[intersect(names(args), methods::formalArgs(stats::kmeans))]
             } else if (style == "hclust") {
-                args[intersect(names(args), formalArgs(stats::hclust))]
+                args[intersect(names(args), methods::formalArgs(stats::hclust))]
             } else if (style == "dpih") {
-                args[intersect(names(args), formalArgs(KernSmooth::dpih))]
+                has_KernSmooth <- requireNamespace("KernSmooth", quietly=TRUE)
+                if (!has_KernSmooth) {
+                    stop("Package 'KernSmooth' is required to use the binning method. Please install it.")
+                }
+                args[intersect(names(args), methods::formalArgs(KernSmooth::dpih))]
             } else {
                 list()
             }

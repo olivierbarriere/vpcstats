@@ -13,10 +13,29 @@
 \item{x}{An object.}
 
 \item{...}{Further arguments can be specified but are ignored.}
+
+\item{show.points}{Should the observed data points be plotted?}
+
+\item{show.boundaries}{Should the bin boundary be displayed?}
+
+\item{xlab}{A character label for the x-axis.}
+
+\item{ylab}{A character label for the y-axis.}
+
+\item{color}{A character vector of colors for the percentiles, from low to high.}
+
+\item{linetype}{A character vector of linetyps for the percentiles, from low to high.}
+
+\item{legend.position}{A character string specifying the position of the legend.}
+
+\item{facet.scales}{A character string specifying the `scales` argument to use for facetting.}
 }
 \value{
 A `ggplot` object.
 }
 \description{
 Plot a \code{vpcstatsobj}.
+}
+\seealso{
+\code{ggplot}
 }
