@@ -20,6 +20,7 @@ Depends:
     data.table (>= 1.9.8),
     magrittr
 Imports:
+    rlang (>= 0.3.0),
     methods
 Suggests:
     cluster,

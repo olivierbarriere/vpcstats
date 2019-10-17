@@ -88,16 +88,16 @@ update.vpcstatsobj <- function(object, ...) {
 #' @export
 observed.data.frame <- function(o, x, yobs, pred=NULL, blq, lloq=-Inf, ...) {
     data <- o
-    x    <- eval(substitute(x),    data, enclos=parent.frame())
-    yobs <- eval(substitute(yobs), data, enclos=parent.frame())
-    pred <- eval(substitute(pred), data, enclos=parent.frame())
-    lloq <- eval(substitute(lloq), data, enclos=parent.frame())
+    x    <- rlang::eval_tidy(rlang::enquo(x),    data)
+    yobs <- rlang::eval_tidy(rlang::enquo(yobs), data)
+    pred <- rlang::eval_tidy(rlang::enquo(pred), data)
+    lloq <- rlang::eval_tidy(rlang::enquo(lloq), data)
     lloq <- as.numeric(lloq)
 
     if (missing(blq)) {
         blq <- (yobs < lloq)
     } else {
-        blq  <- eval(substitute(blq),  data, enclos=parent.frame())
+        blq  <- rlang::eval_tidy(rlang::enquo(blq),  data)
     }
     blq  <- as.logical(blq)
 
@@ -109,7 +109,7 @@ observed.data.frame <- function(o, x, yobs, pred=NULL, blq, lloq=-Inf, ...) {
 
 #' @export
 simulated.vpcstatsobj <- function(o, data, ysim, ...) {
-    ysim <- eval(substitute(ysim), data, enclos=parent.frame())
+    ysim <- rlang::eval_tidy(rlang::enquo(ysim), data)
 
     obs  <- o$obs
     x    <- obs$x
@@ -125,7 +125,7 @@ censoring.vpcstatsobj <- function(o, blq, lloq, data=o$data, ...) {
     if (missing(blq)) {
         blq <- o$blq
     } else {
-        blq <- eval(substitute(blq), data, enclos=parent.frame())
+        blq <- rlang::eval_tidy(rlang::enquo(blq), data)
     }
     if (is.null(blq)) {
         stop("No blq specified")
@@ -134,7 +134,7 @@ censoring.vpcstatsobj <- function(o, blq, lloq, data=o$data, ...) {
     if (missing(lloq)) {
         lloq <- o$lloq
     } else {
-        lloq <- eval(substitute(lloq), data, enclos=parent.frame())
+        lloq <- rlang::eval_tidy(rlang::enquo(lloq), data)
     }
     if (is.null(lloq)) {
         stop("No lloq specified")
@@ -192,7 +192,7 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     . <- list
 
     # If xbin is numeric, then that is the bin
-    xbin <- eval(substitute(xbin), data, enclos=parent.frame())
+    xbin <- rlang::eval_tidy(rlang::enquo(xbin), data)
     if (is.numeric(xbin)) {
         if (length(xbin) != nrow(o$obs)) {
             stop("A numeric xbin be of length equal to the number of observations")
@@ -204,7 +204,7 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
         } else if (missing(bin) && !missing(breaks)) {
             bin <- "breaks"
         } else {
-            bin <- eval(substitute(bin), data, enclos=parent.frame())
+            bin <- rlang::eval_tidy(rlang::enquo(bin), data)
         }
     }
 
@@ -212,17 +212,17 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     if (missing(altx)) {
         x <- o$obs$x
     } else {
-        x <- eval(substitute(altx), data, enclos=parent.frame())
+        x <- rlang::eval_tidy(rlang::enquo(altx), data)
     }
 
     if (!missing(nbins)) {
-        nbins <- eval(substitute(nbins), data, enclos=parent.frame())
+        nbins <- rlang::eval_tidy(rlang::enquo(nbins), data)
         if (is.numeric(nbins) && (length(nbins) == nrow(o$strat))) {
             nbins <- data.table(nbins)[, .(nbins=unique(nbins)), by=o$strat]
         }
     }
 
-    args <- eval(substitute(list(...)), data, enclos=parent.frame())
+    args <- lapply(rlang::enquos(...), rlang::eval_tidy, data=data)
 
     # Check if specific stratum selected (can be more than 1), setup filter
     if (!is.null(stratum)) {
@@ -334,7 +334,7 @@ predcorrect.vpcstatsobj <- function(o, pred, data=o$data, ..., log=FALSE) {
     if (missing(pred)) {
         pred <- o$pred
     } else {
-        pred <- eval(substitute(pred), data, enclos=parent.frame())
+        pred <- rlang::eval_tidy(rlang::enquo(pred), data)
     }
     if (is.null(pred)) {
         stop("No pred specified")
