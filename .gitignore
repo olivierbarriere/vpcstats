@@ -4,3 +4,7 @@
 .Ruserdata
 inst/doc
 data-raw
+.*.swp
+*.bak
+*.tmp
+*.temp
