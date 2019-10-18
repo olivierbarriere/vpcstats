@@ -217,7 +217,7 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
 
     if (!missing(nbins)) {
         nbins <- rlang::eval_tidy(rlang::enquo(nbins), data)
-        if (is.numeric(nbins) && (length(nbins) == nrow(o$strat))) {
+        if (is.numeric(nbins) && !is.null(o$strat) && (length(nbins) == nrow(o$strat))) {
             nbins <- data.table(nbins)[, .(nbins=unique(nbins)), by=o$strat]
         }
     }
@@ -228,6 +228,9 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     if (!is.null(stratum)) {
         if (!is.list(stratum)) {
             stop("stratum must be a list, data.frame or data.table")
+        }
+        if (is.null(o$strat)) {
+            stop("No stratification has been specified")
         }
         filter <- copy(o$strat)[, keep := F]
         filter[as.data.table(stratum), keep := T, on=names(stratum)]
@@ -286,8 +289,8 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
 
     if (is.function(bin)) {
         xdat <- data.table(i=1:nrow(o$obs), x=o$obs$x)
-        sdat <- copy(o$strat)
-        if (by.strata) {
+        if (by.strata && !is.null(o$strat)) {
+            sdat <- copy(o$strat)
             temp <- xdat[filter, .(i=i, j=do.call(bin, c(list(x), args, .BY))), by=sdat[filter]]
             j <- temp[order(i), j]
         } else {
@@ -310,7 +313,7 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     } else {
         stratbin <- data.table(bin)
     }
-    o <- update(o, stratbin=stratbin, bin.by.strata=by.strata)
+    o <- update(o, .stratbin=stratbin, bin.by.strata=by.strata)
 
     # Assign an x value to each bin
     if (is.numeric(xbin)) {
@@ -340,7 +343,7 @@ predcorrect.vpcstatsobj <- function(o, pred, data=o$data, ..., log=FALSE) {
         stop("No pred specified")
     }
 
-    stratbin <- o$stratbin
+    stratbin <- o$.stratbin
     if (is.null(stratbin)) {
         stop("Need to specify binning before pred correction")
     }
@@ -374,7 +377,7 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
     obs      <- o$obs
     sim      <- o$sim
     predcor  <- o$predcor
-    stratbin <- o$stratbin
+    stratbin <- o$.stratbin
     xbin     <- o$xbin
 
     if (is.null(stratbin)) {
@@ -384,7 +387,7 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
         warning("There are bins missing. Has binning been specified for all strata?", call.=F)
     }
 
-    stratbinrepl <- data.table(stratbin, sim[, .(repl)])
+    .stratbinrepl <- data.table(stratbin, sim[, .(repl)])
 
     myquant1 <- function(y, probs, qname=paste0("q", probs), type=quantile.type, blq=F) {
         y <- y + ifelse(blq, -Inf, 0)
@@ -400,16 +403,16 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
 
     if (isTRUE(predcor)) {
         qobs <- obs[, myquant1(ypc, probs=qpred, blq=blq), by=stratbin]
-        qsim <- sim[, myquant1(ypc, probs=qpred, blq=F),   by=stratbinrepl]
+        qsim <- sim[, myquant1(ypc, probs=qpred, blq=F),   by=.stratbinrepl]
     } else {
         qobs <- obs[, myquant1(y, probs=qpred, blq=blq), by=stratbin]
-        qsim <- sim[, myquant1(y, probs=qpred, blq=F),   by=stratbinrepl]
+        qsim <- sim[, myquant1(y, probs=qpred, blq=F),   by=.stratbinrepl]
     }
 
-    stratbinquant <- qsim[, !c("repl", "y")]
+    .stratbinquant <- qsim[, !c("repl", "y")]
     qconf <- c(0, 0.5, 1) + c(1, 0, -1)*(1 - conf.level)/2
-    qqsim <- qsim[, myquant2(y, probs=qconf, qname=c("lo", "md", "hi")), by=stratbinquant]
-    stats <- qobs[qqsim, on=names(stratbinquant)]
+    qqsim <- qsim[, myquant2(y, probs=qconf, qname=c("lo", "md", "hi")), by=.stratbinquant]
+    stats <- qobs[qqsim, on=names(.stratbinquant)]
     stats <- xbin[stats, on=names(stratbin)]
     setkeyv(stats, c(names(o$strat), "xbin"))
 
@@ -417,10 +420,10 @@ vpcstats.vpcstatsobj <- function(o, qpred=c(0.05, 0.5, 0.95), ..., conf.level=0.
         sim[, lloq := rep(obs$lloq, len=.N)]
         sim[, blq := (y < lloq)]
         pctblqobs <- obs[, .(y=100*mean(blq)), by=stratbin]
-        pctblqsim <- sim[, .(y=100*mean(blq)), by=stratbinrepl]
-        stratbinpctblq <- pctblqsim[, !c("repl", "y")]
-        qpctblqsim <- pctblqsim[, myquant2(y, probs=qconf, qname=c("lo", "md", "hi")), by=stratbinpctblq]
-        pctblq <- pctblqobs[qpctblqsim, on=names(stratbinpctblq)]
+        pctblqsim <- sim[, .(y=100*mean(blq)), by=.stratbinrepl]
+        .stratbinpctblq <- pctblqsim[, !c("repl", "y")]
+        qpctblqsim <- pctblqsim[, myquant2(y, probs=qconf, qname=c("lo", "md", "hi")), by=.stratbinpctblq]
+        pctblq <- pctblqobs[qpctblqsim, on=names(.stratbinpctblq)]
         pctblq <- xbin[pctblq, on=names(stratbin)]
         setkeyv(pctblq, c(names(o$strat), "xbin"))
     } else {
@@ -483,16 +486,16 @@ bininfo.vpcstatsobj <- function(o, by.strata=o$bin.by.strata, ...) {
         xcenter <- 0.5*(xleft + xright)
         data.table(xleft, xright, xcenter)
     }
-    if (isTRUE(by.strata)) {
-        bi <- o$obs[, f1(x), by=o$stratbin]
+    if (isTRUE(by.strata) && !is.null(o$strat)) {
+        bi <- o$obs[, f1(x), by=o$.stratbin]
         setkeyv(bi, c(names(o$strat), "xmin"))
         bi[, c(.SD, f2(xmin, xmax)), by=names(o$strat)]
     } else {
         bi <- o$obs[, f1(x), by=bin]
-        setkeyv(bi, "xmin")
         bi <- cbind(bi, bi[, f2(xmin, xmax)])
-        bi <- bi[unique(o$stratbin), on="bin"]
-        bi[, c(names(o$stratbin), setdiff(names(bi), names(o$stratbin))), with=F]
+        bi <- bi[unique(o$.stratbin), on="bin"]
+        setkeyv(bi, "xmin")
+        bi[, c(names(o$.stratbin), setdiff(names(bi), names(o$.stratbin))), with=F]
     }
 }
 
