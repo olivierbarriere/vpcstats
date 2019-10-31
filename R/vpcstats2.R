@@ -298,6 +298,12 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
 
     if (is.function(bin)) {
         xdat <- data.table(i=1:nrow(o$obs), x=x)
+        if (any(is.na(xdat[filter]$x))) {
+            warning("x contains missing values, which could affect binning")
+        }
+        if (any(is.infinite(xdat[filter]$x))) {
+            warning("x contains non-finite values, which could affect binning")
+        }
         if (by.strata && !is.null(o$strat)) {
             sdat <- copy(o$strat)
             temp <- xdat[filter, .(i=i, j=do.call(bin, c(list(x), args, .BY))), by=sdat[filter]]
