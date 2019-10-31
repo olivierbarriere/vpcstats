@@ -224,6 +224,8 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
 
     args <- lapply(rlang::enquos(...), rlang::eval_tidy, data=data)
 
+    by.strata <- isTRUE(by.strata)
+
     # Check if specific stratum selected (can be more than 1), setup filter
     if (!is.null(stratum)) {
         if (!is.list(stratum)) {
@@ -231,6 +233,9 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
         }
         if (is.null(o$strat)) {
             stop("No stratification has been specified")
+        }
+        if (!by.strata) {
+            stop("by.strata must be TRUE when stratum is specified")
         }
         filter <- copy(o$strat)[, keep := F]
         filter[as.data.table(stratum), keep := T, on=names(stratum)]
@@ -254,14 +259,18 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
             if (missing(centers)) {
                 stop("centers must be specified to use this binning method")
             }
+            if (!by.strata && is.data.frame(centers)) {
+                stop("by.strata must be TRUE when centers is a data.frame")
+            }
             bin <- nearest(centers)
-            by.strata <- is.data.frame(centers)
         } else if (bin == "breaks") {
             if (missing(breaks)) {
                 stop("breaks must be specified to use this binning method")
             }
+            if (!by.strata && is.data.frame(breaks)) {
+                stop("by.strata must be TRUE when breaks is a data.frame")
+            }
             bin <- cut_at(breaks)
-            by.strata <- is.data.frame(breaks)
         } else if (bin == "ntile") {
             if (missing(nbins)) {
                 stop("nbins must be specified to use this binning method")
@@ -288,7 +297,7 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     }
 
     if (is.function(bin)) {
-        xdat <- data.table(i=1:nrow(o$obs), x=o$obs$x)
+        xdat <- data.table(i=1:nrow(o$obs), x=x)
         if (by.strata && !is.null(o$strat)) {
             sdat <- copy(o$strat)
             temp <- xdat[filter, .(i=i, j=do.call(bin, c(list(x), args, .BY))), by=sdat[filter]]
@@ -306,7 +315,6 @@ binning.vpcstatsobj <- function(o, bin, data=o$data, ..., xbin="xmedian", center
     }
     o$obs[filter, bin := j]
     bin <- o$obs$bin
-    o$sim[, bin := rep(bin, len=.N)]
 
     if (!is.null(o$strat)) {
         stratbin <- data.table(o$strat, bin)
@@ -486,12 +494,13 @@ bininfo.vpcstatsobj <- function(o, by.strata=o$bin.by.strata, ...) {
         xcenter <- 0.5*(xleft + xright)
         data.table(xleft, xright, xcenter)
     }
-    if (isTRUE(by.strata) && !is.null(o$strat)) {
+    if (by.strata && !is.null(o$strat)) {
         bi <- o$obs[, f1(x), by=o$.stratbin]
         setkeyv(bi, c(names(o$strat), "xmin"))
         bi[, c(.SD, f2(xmin, xmax)), by=names(o$strat)]
     } else {
         bi <- o$obs[, f1(x), by=bin]
+        setkeyv(bi, "xmin")
         bi <- cbind(bi, bi[, f2(xmin, xmax)])
         bi <- bi[unique(o$.stratbin), on="bin"]
         setkeyv(bi, "xmin")
@@ -534,7 +543,7 @@ print.vpcstatsobj <- function(x, ...) {
 #' @seealso
 #' \code{ggplot}
 #' @export
-plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top", facet.scales="free") {
+plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, show.stats=!is.null(x$stats), show.binning=is.null(x$stats), xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top", facet.scales="free") {
 
     xbin <- lo <- hi <- qname <- md <- y <- xleft <- xright <- ypc <- NULL
     . <- list
@@ -552,29 +561,35 @@ plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xla
     if (!has_ggplot2) {
         stop("Package 'ggplot2' is required for plotting. Please install it to use this method.")
     }
-    g <- ggplot2::ggplot(vpc$stats, ggplot2::aes(x=xbin)) +
-        ggplot2::geom_ribbon(ggplot2::aes(ymin=lo, ymax=hi, fill=qname, col=qname, group=qname), alpha=0.1, col=NA) +
-        ggplot2::geom_line(ggplot2::aes(y=md, col=qname, group=qname)) +
-        ggplot2::geom_line(ggplot2::aes(y=y, linetype=qname), size=1) +
-        ggplot2::scale_colour_manual(
-            name=sprintf("Simulated Percentiles\nMedian (lines) %s%% CI (areas)", 100*vpc$conf.level),
-            values=color,
-            breaks=qlvls,
-            labels=qlbls) +
-        ggplot2::scale_fill_manual(
-            name=sprintf("Simulated Percentiles\nMedian (lines) %s%% CI (areas)", 100*vpc$conf.level),
-            values=color,
-            breaks=qlvls,
-            labels=qlbls) +
-        ggplot2::scale_linetype_manual(
-            name="Observed Percentiles\n(black lines)",
-            values=linetype,
-            breaks=qlvls,
-            labels=qlbls) +
-        ggplot2::guides(
-            fill=ggplot2::guide_legend(order=2),
-            colour=ggplot2::guide_legend(order=2),
-            linetype=ggplot2::guide_legend(order=1)) +
+    if (show.stats) {
+        g <- ggplot2::ggplot(vpc$stats, ggplot2::aes(x=xbin)) +
+            ggplot2::geom_ribbon(ggplot2::aes(ymin=lo, ymax=hi, fill=qname, col=qname, group=qname), alpha=0.1, col=NA) +
+            ggplot2::geom_line(ggplot2::aes(y=md, col=qname, group=qname)) +
+            ggplot2::geom_line(ggplot2::aes(y=y, linetype=qname), size=1) +
+            ggplot2::scale_colour_manual(
+                name=sprintf("Simulated Percentiles\nMedian (lines) %s%% CI (areas)", 100*vpc$conf.level),
+                values=color,
+                breaks=qlvls,
+                labels=qlbls) +
+            ggplot2::scale_fill_manual(
+                name=sprintf("Simulated Percentiles\nMedian (lines) %s%% CI (areas)", 100*vpc$conf.level),
+                values=color,
+                breaks=qlvls,
+                labels=qlbls) +
+            ggplot2::scale_linetype_manual(
+                name="Observed Percentiles\n(black lines)",
+                values=linetype,
+                breaks=qlvls,
+                labels=qlbls) +
+            ggplot2::guides(
+                fill=ggplot2::guide_legend(order=2),
+                colour=ggplot2::guide_legend(order=2),
+                linetype=ggplot2::guide_legend(order=1))
+    } else {
+        g <- ggplot2::ggplot(vpc$strat)
+    }
+
+    g <- g + ggplot2::theme_bw() +
         ggplot2::theme(
             legend.key.width=ggplot2::unit(2, "lines"),
             legend.position=legend.position) +
@@ -590,10 +605,21 @@ plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, xla
     }
 
     if (show.points) {
+        points.dat <- copy(vpc$obs)
         if (isTRUE(vpc$predcor)) {
-            g <- g + ggplot2::geom_point(data=vpc$obs, ggplot2::aes(x=x, y=ypc), size=1, alpha=0.4)
+            points.dat[, y := ypc]
+        }
+        if (show.binning) {
+            reorder2 <- function(y, x) {
+                y <- stats::reorder(y, x)
+                (1:nlevels(y))[y]
+            }
+            points.dat[, color := reorder2(factor(bin), x), by=vpc$strat]
+            points.dat[, color := factor(color)]
+            g <- g + ggplot2::geom_point(data=points.dat, ggplot2::aes(x=x, y=y, color=color), size=1, alpha=0.4, show.legend=F) +
+                scale_color_brewer(palette="Set1")
         } else {
-            g <- g + ggplot2::geom_point(data=vpc$obs, ggplot2::aes(x=x, y=y), size=1, alpha=0.4)
+            g <- g + ggplot2::geom_point(data=points.dat, ggplot2::aes(x=x, y=y), size=1, alpha=0.4)
         }
     }
 
