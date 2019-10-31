@@ -532,6 +532,8 @@ print.vpcstatsobj <- function(x, ...) {
 #' @param x An object.
 #' @param show.points Should the observed data points be plotted?
 #' @param show.boundaries Should the bin boundary be displayed?
+#' @param show.stats Should the VPC stats be displayed?
+#' @param show.binning Should the binning be displayed by coloring the observed data points by bin?
 #' @param xlab A character label for the x-axis.
 #' @param ylab A character label for the y-axis.
 #' @param color A character vector of colors for the percentiles, from low to high.
@@ -543,7 +545,7 @@ print.vpcstatsobj <- function(x, ...) {
 #' @seealso
 #' \code{ggplot}
 #' @export
-plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, show.stats=!is.null(x$stats), show.binning=is.null(x$stats), xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top", facet.scales="free") {
+plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, show.stats=!is.null(x$stats), show.binning=isFALSE(show.stats), xlab=NULL, ylab=NULL, color=c("red", "blue", "red"), linetype=c("dotted", "solid", "dashed"), legend.position="top", facet.scales="free") {
 
     xbin <- lo <- hi <- qname <- md <- y <- xleft <- xright <- ypc <- NULL
     . <- list

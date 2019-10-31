@@ -1,8 +1,8 @@
 Package: vpcstats
 Type: Package
 Title: Compute Prediction Intervals on Simulated versus Observed Data
-Version: 0.2.0
-Date: 2019-10-17
+Version: 0.2.1
+Date: 2019-10-31
 Authors@R: c(
       person("Olivier", "Barriere", email = "olivier.barriere@gmail.com",
       role = c("aut", "cre")),
