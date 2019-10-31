@@ -603,15 +603,6 @@ plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, sho
             legend.position=legend.position) +
         ggplot2::labs(x=xlab, y=ylab)
 
-    if (show.boundaries) {
-        if (!is.null(vpc$strat)) {
-            boundaries <- bininfo(vpc)[, .(x=sort(unique(c(xleft, xright)))), by=names(vpc$strat)]
-        } else {
-            boundaries <- bininfo(vpc)[, .(x=sort(unique(c(xleft, xright))))]
-        }
-        g <- g + ggplot2::geom_rug(data=boundaries, ggplot2::aes(x=x), sides="t", size=1)
-    }
-
     if (show.points) {
         points.dat <- copy(vpc$obs)
         if (isTRUE(vpc$predcor)) {
@@ -629,6 +620,19 @@ plot.vpcstatsobj <- function(x, ..., show.points=TRUE, show.boundaries=TRUE, sho
         } else {
             g <- g + ggplot2::geom_point(data=points.dat, ggplot2::aes(x=x, y=y), size=1, alpha=0.4)
         }
+    }
+
+    if (show.boundaries) {
+        if (!is.null(vpc$strat)) {
+            boundaries <- bininfo(vpc)[, .(x=sort(unique(c(xleft, xright)))), by=names(vpc$strat)]
+        } else {
+            boundaries <- bininfo(vpc)[, .(x=sort(unique(c(xleft, xright))))]
+        }
+        if (show.binning) {
+            g <- g + ggplot2::geom_vline(data=boundaries, ggplot2::aes(xintercept=x), size=rel(0.5), col="gray80") + 
+                ggplot2::theme(panel.grid=ggplot2::element_blank())
+        }
+        g <- g + ggplot2::geom_rug(data=boundaries, ggplot2::aes(x=x), sides="t", size=1)
     }
 
     if (!is.null(vpc$strat)) {
