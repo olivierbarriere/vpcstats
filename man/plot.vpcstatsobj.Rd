@@ -5,7 +5,8 @@
 \title{Plot a \code{vpcstatsobj}.}
 \usage{
 \method{plot}{vpcstatsobj}(x, ..., show.points = TRUE,
-  show.boundaries = TRUE, xlab = NULL, ylab = NULL,
+  show.boundaries = TRUE, show.stats = !is.null(x$stats),
+  show.binning = isFALSE(show.stats), xlab = NULL, ylab = NULL,
   color = c("red", "blue", "red"), linetype = c("dotted", "solid",
   "dashed"), legend.position = "top", facet.scales = "free")
 }
@@ -17,6 +18,10 @@
 \item{show.points}{Should the observed data points be plotted?}
 
 \item{show.boundaries}{Should the bin boundary be displayed?}
+
+\item{show.stats}{Should the VPC stats be displayed?}
+
+\item{show.binning}{Should the binning be displayed by coloring the observed data points by bin?}
 
 \item{xlab}{A character label for the x-axis.}
 
